@@ -15,6 +15,9 @@ There is no build step and no dependencies to install. The only external request
 - Drop in one or more CSV exports. Multiple forms (Prep School, Arnold Hall, …) can be loaded at once — each file becomes a "pickup location" you can filter by.
 - Pick the delivery date. The number on each date chip is the total packages ordered for that date across every loaded file.
 - The checklist merges each cadet into a single line, adding up packages from all of their orders, and flags any line built from more than one order.
+  Identity is the **cadet's own email address**, not their phone. A parent buying for two different cadets frequently enters the same contact number on both
+  orders, so keying on phone welds two unrelated people into one row — and one of them then never appears on the list at all. Email was present on every row
+  of both sample exports and produced no false merges. If a future export has a blank email, that row falls back to phone, then to name.
 - **Sort** by last name (the default), first name, or most packages. Sorting by last name also displays names as `Last, First`, the way a roster reads. The printout follows whatever order is on screen.
 - **Print / save PDF** produces a clean checklist: checkbox, name, phone, package count, and a "Picked up by" column for initials. Print it before the pickup — paper needs no signal.
 

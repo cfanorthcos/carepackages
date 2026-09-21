@@ -212,8 +212,13 @@
   .ph { font-size: 13.5px; white-space: nowrap; }
   td.qty { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 19px; }
   td.qty.multi { color: var(--accent); }
-  .idx { color: var(--muted); font-size: 12.5px; width: 34px; }
+  .alpha {
+    width: 26px; color: var(--muted); font-weight: 700; font-size: 12.5px;
+    font-family: "Barlow Condensed", sans-serif; letter-spacing: .04em;
+  }
   .cb { width: 34px; }
+  .lead { display: none; }
+
   .cb input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
   .tag {
     display: inline-block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
@@ -244,23 +249,70 @@
   }
 
   @media print {
+    @page { margin: 0.45in 0.5in; }
     :root { --ground: #fff; --surface: #fff; --ink: #000; --muted: #444; --line: #bbb; --line-strong: #666; --accent: #000; --accent-soft: #fff; }
-    body { background: #fff; font-size: 11.5pt; }
-    .wrap { padding: 0; gap: 14px; max-width: none; }
+    body { background: #fff; font-size: 11pt; line-height: 1.2; }
+    .wrap { padding: 0; gap: 0; max-width: none; display: block; }
     .noprint { display: none !important; }
     .panel { border: 0; padding: 0; }
-    .printhead { display: block; }
-    .printhead h2 { color: #000; font-size: 13pt; letter-spacing: .06em; margin-bottom: 2px; }
-    .printhead .sub { font-size: 10pt; color: #333; }
+    .tablewrap { overflow: visible; }
+
+    .printhead { display: block; margin-bottom: 4px; }
+    .printhead h2 { color: #000; font-size: 13pt; letter-spacing: .04em; margin: 0 0 1px; }
+    .printhead .sub { font-size: 9.5pt; color: #333; }
+
+    /* Fixed widths: nothing wraps, so one row is one line. */
+    table { table-layout: fixed; width: 100%; font-size: 11pt; }
     thead { display: table-header-group; }
+    thead th {
+      font-size: 7.5pt; letter-spacing: .09em; color: #000;
+      padding: 0 5px 3px; border-bottom: 1.2px solid #000;
+    }
     tbody tr { page-break-inside: avoid; }
-    tbody td { padding: 7px 8px; border-bottom: 1px solid #ccc; }
+    tbody td {
+      padding: 3.4pt 5px; border-bottom: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* One hairline every fifth row instead of a rule under all 127 —
+       enough to track across, quiet enough to disappear. */
+    tbody tr:nth-child(5n) td { border-bottom: .4pt solid #dcdcdc; }
+
+    th.cb, td.cb { width: 24pt; }
+    th.alpha, td.alpha { width: 18pt; }
+    /* Name is a fixed measure so the count lands right beside it —
+       no long sweep across the page to pick up the wrong row. */
+    /* Name is a fixed measure (the longest real name runs 158pt) so the
+       count sits right against it — no sweep across the page onto the
+       wrong row. Remarks take the slack; the phone stays anchored right. */
+    th.nm, td.nm { width: 175pt; }
+    th.qty, td.qty { width: 34pt; text-align: left; padding-left: 10px; }
+    th.ph, td.ph { width: 92pt; text-align: right; }
+    /* Name takes the slack, with the note sitting in it rather than
+       reserving a column that is blank on 124 rows out of 127. The
+       leader carries the eye from the name across to the count. */
+    td.notes { color: #6b6b6b; }
+    .tag .detail { display: none; }  /* keep the print note short enough to fit */
+    .lead { display: none; }
+
     .cb input { display: none; }
-    .cb::before { content: ""; display: inline-block; width: 13px; height: 13px; border: 1.2px solid #000; }
+    .cb::before {
+      content: ""; display: block; width: 11.5pt; height: 11.5pt;
+      border: .9pt solid #000; border-radius: 1pt;
+    }
+    td.alpha { font-weight: 700; font-size: 10pt; color: #000; }
+    td.nm { font-weight: 400; font-size: 11.5pt; }
+    td.ph { font-size: 9.5pt; color: #7a7a7a; letter-spacing: -.01em; }
+    /* Nearly every cadet takes one package; let the exceptions be the
+       only numbers that carry any weight. */
+    td.qty { font-size: 11pt; font-weight: 400; color: #9a9a9a; }
+    td.qty.multi { font-size: 13pt; font-weight: 700; color: #000; }
     tbody tr.done { color: #000; }
     tbody tr.done .nm { text-decoration: none; }
-    .initials { display: table-cell; border-bottom: 1px solid #ccc; min-width: 90px; }
-    .tag.loc, .tag.merged { border: 1px solid #999; background: #fff; color: #000; }
+    .tag {
+      font-size: 8.5pt; letter-spacing: 0; padding: 0; font-style: italic;
+      background: none !important; color: #6b6b6b !important; border: 0;
+      text-transform: none; font-family: inherit; font-weight: 400;
+    }
     a[href]::after { content: none; }
   }
 </style>
@@ -337,14 +389,12 @@
       <table id="table">
         <thead>
           <tr>
-            <th class="cb noprint"></th>
-            <th class="cb" style="display:none"></th>
-            <th class="idx">#</th>
-            <th>Cadet</th>
-            <th>Phone</th>
-            <th>Pkgs</th>
-            <th>Notes</th>
-            <th class="initials">Picked up by</th>
+            <th class="cb"></th>
+            <th class="alpha"></th>
+            <th class="nm">Cadet</th>
+            <th class="qty">Pkgs</th>
+            <th class="notes"></th>
+            <th class="ph">Phone</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -406,6 +456,7 @@
     const col = {
       submitted: find(h => h.includes("submission") && h.includes("date")),
       cadetName: find(h => h.includes("cadet") && h.includes("name")),
+      cadetEmail: find(h => h.includes("cadet") && h.includes("email")),
       cadetPhone: find(h => h.includes("cadet") && h.includes("phone")),
       buyerName: find(h => h.includes("name") && h.includes("purchasing")),
       buyerPhone: find(h => h.includes("phone") && h.includes("purchasing")),
@@ -428,6 +479,9 @@
     }
     if (col.cadetPhone === null) {
       col.cadetPhone = find(h => h.includes("phone") && !h.includes("purchasing"));
+    }
+    if (col.cadetEmail === null) {
+      col.cadetEmail = find(h => h.includes("email") && !h.includes("purchasing"));
     }
     return col;
   }
@@ -486,7 +540,7 @@
     return (s || "").trim();
   }
   function titleFromFilename(name) {
-    return name.replace(/\.csv$/i, "")
+    return name.replace(/\.csv$/i, "").replace(/^[0-9a-f]{8}-/i, "")
                .replace(/[ _-]*\d{4}-\d{2}-\d{2}[ _-]*\d{1,2}[_:]\d{2}[_:]\d{2}\s*$/, "")
                .replace(/[ _-]*\d{4}-\d{2}-\d{2}\s*$/, "")
                .replace(/[_]+/g, " ")
@@ -517,6 +571,7 @@
         row: i + 1,
         location: location,
         name: name_,
+        email: cell(col.cadetEmail),
         phone: cell(col.cadetPhone),
         buyerName: cell(col.buyerName),
         buyerPhone: cell(col.buyerPhone),
@@ -603,10 +658,14 @@
       let qty = 0;
       for (const d of o.dates) if (d.key === state.date) qty += d.qty;
       if (!qty) continue;
-      const key = (digits(o.phone) || norm(o.name)) + "|" + o.location;
+      /* Identity is the cadet's own email. A purchaser buying for two
+         cadets often puts the same contact number on both orders, so
+         keying on phone silently welds two different people into one
+         line — and one of them then never appears on the list. */
+      const key = (norm(o.email) || digits(o.phone) || norm(o.name)) + "|" + o.location;
       if (!byCadet.has(key)) {
         byCadet.set(key, {
-          key: key, name: o.name, phone: o.phone, location: o.location,
+          key: key, name: o.name, phone: o.phone, email: o.email, location: o.location,
           qty: 0, orders: 0, flags: new Set(), names: new Set()
         });
       }
@@ -707,8 +766,7 @@
 
     const dLabel = (totals.find(t => t.key === state.date) || {}).label || "";
     $("printTitle").textContent = "Care package pickup — " + dLabel;
-    $("printSub").textContent = (state.loc === "ALL" ? locs.join(" + ") : state.loc) +
-      " · " + list.length + " cadets · " + packages + " packages" +
+    $("printSub").textContent = list.length + " cadets · " + packages + " packages" +
       (state.sample ? "  ·  SAMPLE DATA" : "");
 
     renderReview();
@@ -744,23 +802,37 @@
     const shown = q ? list.filter(e =>
       e.name.toLowerCase().includes(q) || digits(e.phone).includes(digits(q) || "\u0000")) : list;
     $("emptyMsg").hidden = shown.length > 0;
-    $("tbody").innerHTML = shown.map((e, i) => {
+
+    /* The left rail carries a letter only where the initial changes,
+       so the alphabet reads down the page without costing a row. */
+    const railOn = state.sort === "last" || state.sort === "first";
+    const initial = e => ((state.sort === "first" ? firstName(e.name) : lastName(e.name))[0] || "").toUpperCase();
+    let prev = "";
+    let anyNotes = false;
+
+    $("tbody").innerHTML = shown.map(e => {
       const tags = [];
       if (state.loc === "ALL" && locations().length > 1) tags.push('<span class="tag loc">' + esc(e.location) + "</span>");
       if (e.orders > 1) tags.push('<span class="tag merged">' + e.orders + " orders merged</span>");
-      if (e.names.size > 1) tags.push('<span class="tag flag">Name varies: ' + esc([...e.names].join(" / ")) + "</span>");
+      if (e.names.size > 1) tags.push('<span class="tag flag">Name varies<span class="detail">: ' +
+        esc([...e.names].join(" / ")) + "</span></span>");
       e.flags.forEach(f => tags.push('<span class="tag flag">' + esc(f) + "</span>"));
+      if (tags.length) anyNotes = true;
+
+      let rail = "";
+      if (railOn) { const c = initial(e); if (c && c !== prev) { rail = c; prev = c; } }
+
       const on = checked.has(e.key);
       return "<tr" + (on ? ' class="done"' : "") + ">" +
         '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '"' + (on ? " checked" : "") +
         ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
-        '<td class="idx num">' + (i + 1) + "</td>" +
+        '<td class="alpha">' + rail + "</td>" +
         '<td class="nm">' + esc(displayName(e.name)) + "</td>" +
-        '<td class="ph">' + esc(fmtPhone(e.phone)) + "</td>" +
         '<td class="qty' + (e.qty > 1 ? " multi" : "") + '">' + e.qty + "</td>" +
-        "<td>" + tags.join(" ") + "</td>" +
-        '<td class="initials"></td></tr>';
+        '<td class="notes">' + tags.join(" ") + "</td>" +
+        '<td class="ph">' + esc(fmtPhone(e.phone)) + "</td></tr>";
     }).join("");
+    void anyNotes;
   }
 
   /* ============================================================
