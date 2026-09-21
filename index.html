@@ -452,7 +452,8 @@
         <label for="smsTpl">Message sent by the phone links</label>
         <div class="mailrow"><textarea id="smsTpl" rows="5"></textarea></div>
         <p class="hint" style="margin:6px 0 0">
-          <code>{first}</code> first name · <code>{place}</code> pickup point · <code>{time}</code> cut-off ·
+          <code>{first}</code> first name · <code>{day}</code> today / tomorrow / this Thursday ·
+          <code>{place}</code> pickup point · <code>{time}</code> cut-off ·
           <code>{packages}</code> appears only when they have more than one · <code>{qty}</code> the number alone
         </p>
         <label>Preview <span class="n" id="smsMeta"></span></label>
@@ -785,10 +786,28 @@
   }
   const firstOf = n => nameParts(n).first.split(/\s+/)[0] || nameParts(n).last || "there";
 
+  /* Days between today and the selected delivery date, so the wording is
+     right whether the reminder goes out that morning or two days ahead. */
+  function daysAway() {
+    const p = String(state.date || "").split("-");
+    if (p.length !== 3) return null;
+    const d = new Date(+p[0], +p[1] - 1, +p[2]);
+    const t = new Date();
+    d.setHours(0, 0, 0, 0); t.setHours(0, 0, 0, 0);
+    return Math.round((d - t) / 86400000);
+  }
+  function whenPhrase() {
+    const n = daysAway();
+    if (n === 0) return "today";
+    if (n === 1) return "tomorrow";
+    if (n > 1 && n < 7) return "this " + dayName();
+    return "on " + (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
+  }
+
   /* The text is a template you can edit in the reminder panel, so the
      wording can change without touching the code. */
-  const SMS_DEFAULT = "Hi {first}, this is Chick-fil-A. Your care package is ready at {place}.{packages} " +
-    "Please pick up by {time} tonight \u2014 unclaimed orders are given away. " +
+  const SMS_DEFAULT = "Hi {first}, this is Chick-fil-A. Reminder: your care package can be picked up " +
+    "{day} at {place}.{packages} Please collect it by {time} \u2014 unclaimed orders are given away. " +
     "Can't make it? You can send someone in your place.";
   const SMS_STORE = "cfa-carepackages-sms-v1";
   let smsTemplate = SMS_DEFAULT;
@@ -798,6 +817,7 @@
   function smsText(e) {
     const p = pickupFor(e.location);
     return smsTemplate
+      .replace(/\{day\}/g, whenPhrase())
       .replace(/\{first\}/g, firstOf(e.name))
       .replace(/\{name\}/g, e.name)
       .replace(/\{place\}/g, p.place || "the pickup point")
@@ -816,9 +836,11 @@
     return "sms:+1" + t + "?&body=" + encodeURIComponent(smsText(e));
   }
   function emailSubject(who) {
-    const when = (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
-    return who === "parent" ? "Care package pickup \u2014 " + when
-                            : "Your care package is ready \u2014 " + when;
+    const n = daysAway();
+    const soon = n === 0 ? "today" : n === 1 ? "tomorrow" : "";
+    const dated = "\u2014 " + (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
+    if (who === "parent") return soon ? "Care package pickup " + soon : "Care package pickup " + dated;
+    return soon ? "Your care package is ready " + soon : "Your care package " + dated;
   }
   /* Cadets and purchasers get different letters. A Bcc blast carries one
      message, so each audience is its own send — the cadet is told to come
@@ -834,20 +856,22 @@
       + (same && p.place ? "Where: " + p.place + "\n" : "");
     const by = same && p.time ? " by " + p.time : " by the cut-off";
 
+    const d = whenPhrase();
     if (who === "parent") {
-      return "The Chick-fil-A care package you ordered is ready for your cadet to collect tonight.\n\n"
+      return "A reminder that the Chick-fil-A care package you ordered is ready for your cadet "
+        + "to collect " + d + ".\n\n"
         + when
-        + "\nWe have emailed your cadet directly as well. Orders not collected" + by
+        + "\nWe have sent your cadet this reminder directly as well. Orders not collected" + by
         + " are given away, and they cannot be refunded or moved to another date \u2014 if your "
         + "cadet cannot make it, they are welcome to send someone in their place.\n\n"
         + "Thank you for supporting our cadets!\nChick-fil-A North Colorado Springs";
     }
-    return "Your Chick-fil-A care package is ready to collect tonight.\n\n"
+    return "A reminder that your Chick-fil-A care package is ready to collect " + d + ".\n\n"
       + when
       + "\nPlease come by before the cut-off. Anything not collected" + by + " is given away, "
       + "and orders cannot be refunded or moved to another date. If you cannot make it, you are "
       + "welcome to send someone in your place.\n\n"
-      + "See you tonight!\nChick-fil-A North Colorado Springs";
+      + "See you there!\nChick-fil-A North Colorado Springs";
   }
 
   /* ============================================================

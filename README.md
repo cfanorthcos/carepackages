@@ -30,7 +30,9 @@ Two contact tools, both zero-infrastructure — no API key, no server, nothing t
 - **Cadets** — "Your care package is ready to collect tonight", written to the person who has to walk over and get it.
 - **Parents** — "The care package you ordered is ready for your cadet to collect", noting that the cadet has been emailed directly too.
 
-Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready. Neither message can name an individual, since both go to the whole list at once.
+Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready.
+
+Both messages are written as reminders and phrase the timing relative to the day you actually send: the same button produces "ready to collect **today**" on the morning of, "**tomorrow**" the day before, "**this Thursday**" earlier in the week, and the full date beyond that. Subject lines follow (`Your care package is ready today` / `Your care package — Thursday, September 24`). Nothing needs editing when the send time moves. Neither message can name an individual, since both go to the whole list at once.
 
 A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters. The day, building and cut-off time are read out of each form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its correct details automatically.
 
@@ -43,6 +45,7 @@ The text wording is an editable template under the **Text message** tab, saved i
 | Token | Becomes |
 |---|---|
 | `{first}` | the cadet's first name |
+| `{day}` | `today`, `tomorrow`, `this Thursday`, or `on Thursday, September 24` — worked out from the delivery date against the day you send |
 | `{place}` | the pickup point for their location |
 | `{time}` | that location's cut-off |
 | `{packages}` | ` You have 3 packages.` — and nothing at all when they only have one |
