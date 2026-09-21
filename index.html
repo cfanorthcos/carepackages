@@ -330,8 +330,7 @@
         </select>
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
         <button type="button" id="resetBtn">Clear checks</button>
-        <button type="button" id="printBtn">Print / save PDF</button>
-        <button type="button" class="primary" id="offlineBtn">Save offline copy</button>
+        <button type="button" class="primary" id="printBtn">Print / save PDF</button>
       </div>
     </div>
     <div class="tablewrap">
@@ -356,9 +355,6 @@
 
   <p class="foot noprint" id="foot" hidden>
     Everything is read in your browser — no file ever leaves this page.
-    <strong>Save offline copy</strong> downloads the selected date as a single file that
-    works with no internet at all — search and check-off included. Do that before you
-    leave for the pickup.
   </p>
 </div>
 
@@ -658,6 +654,14 @@
   const lastName = n => nameParts(n).last.toLowerCase();
   const firstName = n => nameParts(n).first.toLowerCase();
 
+  /* Sorting by last name puts the surname first, the way a roster
+     reads; the other sorts keep the name as it was entered. */
+  function displayName(n) {
+    if (state.sort !== "last") return n;
+    const p = nameParts(n);
+    return p.first ? p.last + ", " + p.first : (p.last || n);
+  }
+
   /* ============================================================
      7. Render
      ============================================================ */
@@ -751,7 +755,7 @@
         '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '"' + (on ? " checked" : "") +
         ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
         '<td class="idx num">' + (i + 1) + "</td>" +
-        '<td class="nm">' + esc(e.name) + "</td>" +
+        '<td class="nm">' + esc(displayName(e.name)) + "</td>" +
         '<td class="ph">' + esc(fmtPhone(e.phone)) + "</td>" +
         '<td class="qty' + (e.qty > 1 ? " multi" : "") + '">' + e.qty + "</td>" +
         "<td>" + tags.join(" ") + "</td>" +
@@ -819,119 +823,6 @@
   });
   $("resetBtn").addEventListener("click", () => { checked.clear(); renderRows(buildList()); });
   $("printBtn").addEventListener("click", () => window.print());
-
-  /* ============================================================
-     9. Offline copy — one self-contained file, no network of any
-        kind. Search, check-off and printing all work with the
-        phone in airplane mode; ticks survive a reload.
-     ============================================================ */
-  function noteFor(e) {
-    const n = [];
-    if (e.orders > 1) n.push(e.orders + " orders merged");
-    if (e.names.size > 1) n.push("name varies: " + [...e.names].join(" / "));
-    e.flags.forEach(f => n.push(f));
-    return n.join(" · ");
-  }
-
-  function buildOffline(list, dLabel, locLabel) {
-    const rows = list.map(e => ({
-      n: e.name, p: fmtPhone(e.phone), q: e.qty,
-      l: locations().length > 1 && state.loc === "ALL" ? e.location : "",
-      t: noteFor(e)
-    }));
-    const pkgs = list.reduce((a, e) => a + e.qty, 0);
-    const data = JSON.stringify(rows).replace(/</g, "\\u003c");
-    const title = "Pickup — " + dLabel;
-    const S = "<" + "/script>";
-
-    return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
-'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
-'<title>' + esc(title) + '</title><style>' +
-':root{--bg:#F5F7F9;--sf:#fff;--ink:#151A21;--mut:#5B6675;--ln:#DCE2EA;--ac:#1D4E78;--acs:#E4EDF6;--wr:#9A5316;--wrs:#FBEEE0}' +
-'@media(prefers-color-scheme:dark){:root{--bg:#0E1218;--sf:#161C25;--ink:#E7ECF3;--mut:#96A2B2;--ln:#28303B;--ac:#78ADDF;--acs:#17283A;--wr:#E0A066;--wrs:#2C2114}}' +
-'*{box-sizing:border-box}html,body{margin:0}' +
-'body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}' +
-'.w{max-width:820px;margin:0 auto;padding-inline:16px;padding-block:20px 60px}' +
-'h1{font-size:23px;line-height:1.15;margin:0 0 4px;text-wrap:balance}' +
-'.sub{color:var(--mut);font-size:14px;margin:0 0 4px}' +
-'.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;border-bottom:1px solid var(--ln);margin-bottom:4px}' +
-'.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}' +
-'input[type=search]{flex:1 1 180px;min-width:0;font:inherit;padding:10px 12px;border:1px solid var(--ln);border-radius:6px;background:var(--sf);color:var(--ink)}' +
-'button{font:inherit;padding:10px 14px;border:1px solid var(--ln);border-radius:6px;background:var(--sf);color:var(--ink);cursor:pointer}' +
-'.prog{font-size:14px;color:var(--mut);margin-top:8px;font-variant-numeric:tabular-nums}' +
-'.prog b{color:var(--ink)}' +
-'ul{list-style:none;margin:0;padding:0}' +
-'li{display:flex;gap:12px;align-items:flex-start;padding:12px 4px;border-bottom:1px solid var(--ln)}' +
-'li.done{opacity:.5}li.done .nm{text-decoration:line-through}' +
-'li input{width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:var(--ac);cursor:pointer}' +
-'.mid{flex:1 1 auto;min-width:0}' +
-'.nm{font-weight:600}' +
-'.ph{font-size:14px;color:var(--mut);font-variant-numeric:tabular-nums}' +
-'.ph a{color:inherit}' +
-'.nt{font-size:12px;color:var(--wr);background:var(--wrs);display:inline-block;padding:1px 6px;border-radius:3px;margin-top:3px}' +
-'.q{flex:0 0 auto;font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;min-width:26px;text-align:right}' +
-'.q.m{color:var(--ac)}' +
-'.none{color:var(--mut);padding:24px 0;text-align:center}' +
-'.ini{display:none}' +
-'@media print{body{background:#fff;color:#000;font-size:11pt}.w{padding:0;max-width:none}' +
-'.bar,.np{display:none!important}li{padding:7px 2px;border-bottom:1px solid #ccc;page-break-inside:avoid;opacity:1}' +
-'li.done .nm{text-decoration:none}li input{display:none}' +
-'li::before{content:"";flex:0 0 auto;width:14px;height:14px;border:1.2px solid #000;margin-top:2px}' +
-'.ini{display:block;flex:0 0 110px;border-bottom:1px solid #999;height:18px}' +
-'.nt{background:none;color:#000;border:1px solid #999}}' +
-'</style></head><body><div class="w">' +
-'<h1>' + esc(title) + '</h1>' +
-'<p class="sub">' + esc(locLabel) + ' · ' + list.length + ' cadets · ' + pkgs + ' packages</p>' +
-'<p class="sub np">Works with no signal. Ticks are saved on this device.</p>' +
-'<div class="bar"><div class="row">' +
-'<input type="search" id="q" placeholder="Find a cadet…" aria-label="Find a cadet">' +
-'<button type="button" id="pr">Print</button><button type="button" id="rs">Clear</button>' +
-'</div><div class="prog" id="pg"></div></div>' +
-'<ul id="l"></ul><div class="none" id="no" hidden>No cadet matches that search.</div>' +
-'</div><script>(function(){' +
-'var D=' + data + ',K="pickup:' + state.date + ':' + locLabel.replace(/[^a-zA-Z0-9]/g, "") + '";' +
-'var done={};try{done=JSON.parse(localStorage.getItem(K)||"{}")||{}}catch(e){}' +
-'function save(){try{localStorage.setItem(K,JSON.stringify(done))}catch(e){}}' +
-'function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c]})}' +
-'function dig(s){return String(s).replace(/\\D/g,"")}' +
-'var L=document.getElementById("l"),Q=document.getElementById("q"),PG=document.getElementById("pg"),NO=document.getElementById("no");' +
-'function prog(){var d=0,t=0;for(var i=0;i<D.length;i++){t+=D[i].q;if(done[i])d+=D[i].q}' +
-'PG.innerHTML="<b>"+d+"</b> of <b>"+t+"</b> packages handed out"+(d===t&&t?" — all done":"")}' +
-'function draw(){var s=Q.value.trim().toLowerCase(),ds=dig(s),k=0,h="";' +
-'for(var i=0;i<D.length;i++){var r=D[i];' +
-'if(s&&!(r.n.toLowerCase().indexOf(s)>-1||(ds&&dig(r.p).indexOf(ds)>-1)))continue;k++;' +
-'h+=\'<li class="\'+(done[i]?"done":"")+\'"><input type="checkbox" data-i="\'+i+\'"\'+(done[i]?" checked":"")+\' aria-label="Handed to \'+esc(r.n)+\'">\'+' +
-'\'<span class="mid"><span class="nm">\'+esc(r.n)+\'</span><br><span class="ph"><a href="tel:\'+dig(r.p)+\'">\'+esc(r.p)+\'</a></span>\'+' +
-'(r.l?\'<br><span class="ph">\'+esc(r.l)+"</span>":"")+(r.t?\'<br><span class="nt">\'+esc(r.t)+"</span>":"")+"</span>"+' +
-'\'<span class="ini"></span><span class="q\'+(r.q>1?" m":"")+\'">\'+r.q+"</span></li>"}' +
-'L.innerHTML=h;NO.hidden=k>0;prog()}' +
-'L.addEventListener("change",function(e){var c=e.target;if(!c.dataset||c.dataset.i===undefined)return;' +
-'var i=+c.dataset.i;if(c.checked)done[i]=1;else delete done[i];save();c.parentNode.className=c.checked?"done":"";prog()});' +
-'Q.addEventListener("input",draw);' +
-'document.getElementById("pr").addEventListener("click",function(){window.print()});' +
-'document.getElementById("rs").addEventListener("click",function(){done={};save();draw()});' +
-'draw();})();' + S + '</body></html>';
-  }
-
-  $("offlineBtn").addEventListener("click", () => {
-    const list = buildList();
-    if (!list.length) { flash("Nothing to save — no cadets on this date.", true); return; }
-    const totals = dateTotals();
-    const dLabel = (totals.find(t => t.key === state.date) || {}).label || state.date;
-    const locLabel = state.loc === "ALL" ? locations().join(" + ") : state.loc;
-    const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const fname = "pickup-" + state.date + "-" + (slug(locLabel) || "all") + ".html";
-    try {
-      const url = URL.createObjectURL(new Blob([buildOffline(list, dLabel, locLabel)], { type: "text/html" }));
-      const a = document.createElement("a");
-      a.href = url; a.download = fname;
-      document.body.appendChild(a); a.click();
-      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
-      flash("Saved " + fname + " — open it from your downloads at the pickup; it needs no signal.");
-    } catch (err) {
-      flash("This browser blocked the download. Open the tool at its own address rather than in a preview pane, then try again.", true);
-    }
-  });
 
   /* ---- sample data ---- */
   const SAMPLE = '"Submission Date","Cadet\'s Name","Cadet\'s Email","Cadets Phone Number",' +

@@ -15,23 +15,8 @@ There is no build step and no dependencies to install. The only external request
 - Drop in one or more CSV exports. Multiple forms (Prep School, Arnold Hall, …) can be loaded at once — each file becomes a "pickup location" you can filter by.
 - Pick the delivery date. The number on each date chip is the total packages ordered for that date across every loaded file.
 - The checklist merges each cadet into a single line, adding up packages from all of their orders, and flags any line built from more than one order.
-- **Sort** by last name (the default), first name, or most packages. The print and offline copies follow whatever order is on screen.
-- **Print / save PDF** produces a clean checklist: checkbox, name, phone, package count, and a "Picked up by" column for initials.
-- **Save offline copy** downloads the chosen date as a single self-contained file — see below.
-
-## Working the pickup with no signal
-
-`Save offline copy` downloads one HTML file (around 15 KB) holding just the selected date's list. Open it from your phone's downloads at the pickup table; it makes **no network requests of any kind**, so it works in airplane mode or a dead-zone building.
-
-It keeps the parts you need while handing packages out:
-
-- a search box, so you can find a cadet by name or phone without scrolling 130 rows;
-- a tap-to-tick checkbox per cadet, with a running "X of Y packages handed out" counter;
-- tick marks saved on the device, so a locked screen, a reload or a dead battery doesn't lose your place;
-- tap-to-call phone numbers for cadets who don't show;
-- a Print button, if you'd rather work from paper.
-
-Download it while you still have wifi. A PDF can't do live check-off on a phone, which is why this is an HTML file rather than a PDF — print it, or use your browser's print-to-PDF, if you want paper.
+- **Sort** by last name (the default), first name, or most packages. Sorting by last name also displays names as `Last, First`, the way a roster reads. The printout follows whatever order is on screen.
+- **Print / save PDF** produces a clean checklist: checkbox, name, phone, package count, and a "Picked up by" column for initials. Print it before the pickup — paper needs no signal.
 
 ## How the package count is worked out
 
