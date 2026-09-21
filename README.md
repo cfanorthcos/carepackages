@@ -36,9 +36,26 @@ A purchaser who used their cadet's own address is counted in the cadet send only
 
 The panel also warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
 
-**Tap-to-text** — texting is **cadet-only**; parents are emailed, not messaged. On the checklist each cadet's phone number is a link that opens your own phone's Messages app with that cadet's number and a short, personalised message prefilled. Nothing is sent automatically; you review and hit send. This is for chasing the handful who have not collected by the cut-off, one at a time, rather than bulk messaging.
+**Tap-to-text** — texting is **cadet-only**; parents are emailed, not messaged. Each cadet's phone number on the checklist is a link that opens your own phone's Messages app with the number and the message prefilled. Nothing sends automatically. This is for chasing the handful who have not collected by the cut-off, one at a time.
 
-Bulk SMS through a platform (Quo, Twilio, and the rest) additionally requires US carrier registration (A2P 10DLC) and per-cadet consent, which is why email is the primary channel here.
+The text wording is an editable template under the **Text message** tab, saved in your browser:
+
+| Token | Becomes |
+|---|---|
+| `{first}` | the cadet's first name |
+| `{place}` | the pickup point for their location |
+| `{time}` | that location's cut-off |
+| `{packages}` | ` You have 3 packages.` — and nothing at all when they only have one |
+| `{qty}` | the bare number |
+| `{name}` | the full name as entered |
+
+A live preview shows the message as a real cadet on the current list would receive it, with a character and segment count. Editing the template updates every phone link immediately.
+
+### Why there is no bulk-send button
+
+Quo (formerly OpenPhone) states plainly that *"mass texting or bulk texting is not available"* — its group texting caps at 10 people in a single shared thread, where every recipient sees the others. Sending individually through the Quo API is technically possible, but their own deliverability guidance warns against *"identical messages to large contact groups"*, it needs completed US carrier registration (A2P 10DLC) plus prepaid credits, and any fallout lands on the phone number the restaurants actually run on. It would also need a server-side proxy, since an API key cannot live in a public page.
+
+Email reaches every cadet and purchaser for free, with none of that. So email carries the bulk reminder and texting stays a manual, one-at-a-time tool for no-shows.
 
 ### Tracking
 

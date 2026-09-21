@@ -260,6 +260,14 @@
   .mailfoot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
   .audience { margin-bottom: 10px; }
   .audience .chip { padding: 6px 12px; font-size: 13.5px; }
+  .smsprev {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 11px 13px; margin: 4px 0 12px; font-size: 14px; max-width: 46ch; line-height: 1.45;
+  }
+  .hint code {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    background: var(--surface); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--line);
+  }
 
   .notice {
     border-left: 3px solid var(--warn); background: var(--warn-soft);
@@ -428,9 +436,9 @@
       <div class="chips audience">
         <button type="button" class="chip" data-who="cadet" aria-pressed="true">Cadets <span class="count" id="cCount">0</span></button>
         <button type="button" class="chip" data-who="parent" aria-pressed="false">Parents <span class="count" id="pCount">0</span></button>
+        <button type="button" class="chip" data-who="sms" aria-pressed="false">Text message</button>
       </div>
-      <p class="hint">Two separate sends, each with its own wording. Paste the addresses into
-        <strong>Bcc</strong> so nobody sees anyone else's. Texting stays cadet-only.</p>
+      <p class="hint" id="mailHint"></p>
       <p class="hint warnline" id="mailWarn"></p>
       <div class="mailgrid">
         <label for="mailTo">Addresses <span id="toCount" class="n"></span></label>
@@ -440,6 +448,18 @@
         <label for="mailBody">Message</label>
         <div class="mailrow"><textarea id="mailBody" rows="9"></textarea><button type="button" data-copy="mailBody">Copy</button></div>
       </div>
+      <div class="mailgrid" id="smsPane" hidden>
+        <label for="smsTpl">Message sent by the phone links</label>
+        <div class="mailrow"><textarea id="smsTpl" rows="5"></textarea></div>
+        <p class="hint" style="margin:6px 0 0">
+          <code>{first}</code> first name · <code>{place}</code> pickup point · <code>{time}</code> cut-off ·
+          <code>{packages}</code> appears only when they have more than one · <code>{qty}</code> the number alone
+        </p>
+        <label>Preview <span class="n" id="smsMeta"></span></label>
+        <p class="smsprev" id="smsPrev"></p>
+        <div><button type="button" id="smsReset">Reset to default</button></div>
+      </div>
+
       <div class="mailfoot">
         <button type="button" class="primary" id="markEmailed">Mark this date's reminder sent</button>
         <span class="hint" id="mailMsg"></span>
@@ -765,12 +785,28 @@
   }
   const firstOf = n => nameParts(n).first.split(/\s+/)[0] || nameParts(n).last || "there";
 
+  /* The text is a template you can edit in the reminder panel, so the
+     wording can change without touching the code. */
+  const SMS_DEFAULT = "Hi {first}, this is Chick-fil-A. Your care package is ready at {place}.{packages} " +
+    "Please pick up by {time} tonight \u2014 unclaimed orders are given away. " +
+    "Can't make it? You can send someone in your place.";
+  const SMS_STORE = "cfa-carepackages-sms-v1";
+  let smsTemplate = SMS_DEFAULT;
+  try { smsTemplate = localStorage.getItem(SMS_STORE) || SMS_DEFAULT; } catch (err) {}
+  function saveTemplate() { try { localStorage.setItem(SMS_STORE, smsTemplate); } catch (err) {} }
+
   function smsText(e) {
     const p = pickupFor(e.location);
-    return "Hi " + firstOf(e.name) + " \u2014 your Chick-fil-A care package is ready for pickup"
-      + (p.place ? " at " + p.place : "") + "."
-      + (p.time ? " Please collect it by " + p.time + " tonight." : "")
-      + (e.qty > 1 ? " You have " + e.qty + " packages." : "");
+    return smsTemplate
+      .replace(/\{first\}/g, firstOf(e.name))
+      .replace(/\{name\}/g, e.name)
+      .replace(/\{place\}/g, p.place || "the pickup point")
+      .replace(/\{time\}/g, p.time || "the cut-off")
+      .replace(/\{qty\}/g, String(e.qty))
+      // Only says anything when there is more than one to collect.
+      .replace(/\s*\{packages\}/g, e.qty > 1 ? " You have " + e.qty + " packages." : "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   }
   function smsHref(e) {
     const d = digits(e.phone);
@@ -1128,7 +1164,31 @@
     [...$("mailer").querySelectorAll("[data-who]")].forEach(b =>
       b.setAttribute("aria-pressed", String(b.dataset.who === state.who)));
 
-    const addrs = state.who === "parent" ? [...parent] : [...cadet];
+    const sms = state.who === "sms";
+    $("mailHint").innerHTML = sms
+      ? "Used by the phone links on the checklist. Edit it here — nothing sends automatically; "
+        + "your Messages app opens with the text ready for you to review."
+      : "Two separate sends, each with its own wording. Paste the addresses into "
+        + "<strong>Bcc</strong> so nobody sees anyone else's. Texting stays cadet-only.";
+    $("optinWrap").style.display = sms ? "none" : "";
+    $("smsPane").hidden = !sms;
+    [...$("mailer").querySelectorAll(".mailgrid")].forEach(g => { if (g.id !== "smsPane") g.hidden = sms; });
+    $("markEmailed").hidden = sms;
+    if (sms) {
+      $("smsTpl").value = smsTemplate;
+      const sample = list.find(e => e.phone) || list[0];
+      const txt = sample ? smsText(sample) : smsTemplate;
+      $("smsPrev").textContent = txt;
+      const segs = txt.length <= 160 ? 1 : Math.ceil(txt.length / 153);
+      $("smsMeta").textContent = "— " + txt.length + " characters, " + segs + " message" +
+        (segs === 1 ? "" : "s") + (sample ? " · shown for " + sample.name : "");
+      $("mailWarn").textContent = segs > 2
+        ? "Long messages are split into " + segs + " parts by the carrier — worth trimming." : "";
+      $("toCount").textContent = "";
+      return;
+    }
+
+    const addrs = [...(state.who === "parent" ? parent : cadet)];
     $("mailTo").value = addrs.join(", ");
     $("toCount").textContent = "— " + addrs.length + " " +
       (state.who === "parent" ? "purchaser" : "cadet") + " address" + (addrs.length === 1 ? "" : "es");
@@ -1178,6 +1238,22 @@
     }
     b.textContent = ok ? "Copied" : "Select all + copy";
     setTimeout(() => { b.textContent = "Copy"; }, 1800);
+  });
+
+  $("smsTpl").addEventListener("input", e => {
+    smsTemplate = e.target.value; saveTemplate();
+    const list = mailerList();
+    const sample = list.find(x => x.phone) || list[0];
+    const txt = sample ? smsText(sample) : smsTemplate;
+    $("smsPrev").textContent = txt;
+    const segs = txt.length <= 160 ? 1 : Math.ceil(txt.length / 153);
+    $("smsMeta").textContent = "— " + txt.length + " characters, " + segs + " message" + (segs === 1 ? "" : "s");
+    $("mailWarn").textContent = segs > 2
+      ? "Long messages are split into " + segs + " parts by the carrier — worth trimming." : "";
+    renderRows(buildList());   // the phone links carry the new wording
+  });
+  $("smsReset").addEventListener("click", () => {
+    smsTemplate = SMS_DEFAULT; saveTemplate(); fillMailer(); renderRows(buildList());
   });
 
   $("markEmailed").addEventListener("click", () => {
