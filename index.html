@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Care Package Pickup List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground: #F5F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F5;
+    --ink: #151A21;
+    --muted: #5B6675;
+    --line: #DCE2EA;
+    --line-strong: #C3CCD7;
+    --accent: #1D4E78;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E4EDF6;
+    --warn: #9A5316;
+    --warn-soft: #FBEEE0;
+    --good: #256B4E;
+    --good-soft: #E1F0E8;
+    --radius: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0E1218;
+      --surface: #161C25;
+      --surface-2: #1D2530;
+      --ink: #E7ECF3;
+      --muted: #96A2B2;
+      --line: #28303B;
+      --line-strong: #3A4552;
+      --accent: #78ADDF;
+      --accent-ink: #0E1218;
+      --accent-soft: #17283A;
+      --warn: #E0A066;
+      --warn-soft: #2C2114;
+      --good: #6DC49C;
+      --good-soft: #14291F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E1218;
+    --surface: #161C25;
+    --surface-2: #1D2530;
+    --ink: #E7ECF3;
+    --muted: #96A2B2;
+    --line: #28303B;
+    --line-strong: #3A4552;
+    --accent: #78ADDF;
+    --accent-ink: #0E1218;
+    --accent-soft: #17283A;
+    --warn: #E0A066;
+    --warn-soft: #2C2114;
+    --good: #6DC49C;
+    --good-soft: #14291F;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 32px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+  .eyebrow {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+  h1 {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 700;
+    font-size: clamp(34px, 6vw, 46px);
+    line-height: 1.02;
+    letter-spacing: -.005em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede { color: var(--muted); margin: 8px 0 0; max-width: 62ch; }
+  h2 {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  /* ---- drop zone ---- */
+  #drop {
+    border: 1.5px dashed var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 34px 20px;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+  }
+  #drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  #drop p { margin: 0 0 14px; color: var(--muted); }
+  #drop strong { color: var(--ink); font-weight: 600; }
+
+  button, .btn {
+    font: inherit;
+    font-weight: 500;
+    border-radius: var(--radius);
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 8px 15px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); }
+  button.link {
+    border: 0; background: none; color: var(--accent);
+    padding: 4px 2px; text-decoration: underline; text-underline-offset: 3px;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .filerow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .filechip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 100px; padding: 5px 6px 5px 13px; font-size: 13px;
+  }
+  .filechip .n { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .filechip button { border: 0; background: none; padding: 0 6px; color: var(--muted); font-size: 16px; line-height: 1; }
+  .filechip button:hover { color: var(--warn); }
+
+  /* ---- selectors ---- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: "IBM Plex Sans", sans-serif;
+    display: inline-flex; align-items: baseline; gap: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    border-radius: var(--radius); padding: 9px 14px; cursor: pointer;
+    font-size: 14px;
+  }
+  .chip .count {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    font-variant-numeric: tabular-nums; color: var(--muted);
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  }
+  .chip[aria-pressed="true"] .count { color: var(--accent-ink); opacity: .8; }
+  .chip.past { opacity: .55; }
+
+  /* ---- summary ---- */
+  .stats { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
+  .stat .v {
+    font-family: "Barlow Condensed", sans-serif; font-weight: 700;
+    font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .stat .k {
+    font-family: "Barlow Condensed", sans-serif; font-size: 12px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+
+  /* ---- table ---- */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .toolbar .right { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type="search"] {
+    font: inherit; padding: 8px 12px; border-radius: var(--radius);
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    min-width: 190px;
+  }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  thead th {
+    font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 13px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    text-align: left; padding: 0 10px 8px; border-bottom: 1.5px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr.done { color: var(--muted); }
+  tbody tr.done .nm { text-decoration: line-through; }
+  .nm { font-weight: 500; }
+  .num, .ph { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .ph { font-size: 13.5px; white-space: nowrap; }
+  td.qty { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 19px; }
+  td.qty.multi { color: var(--accent); }
+  .idx { color: var(--muted); font-size: 12.5px; width: 34px; }
+  .cb { width: 34px; }
+  .cb input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    font-family: "Barlow Condensed", sans-serif; font-weight: 600;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .tag.merged { background: var(--accent-soft); color: var(--accent); }
+  .tag.loc { background: var(--surface-2); color: var(--muted); }
+  .tag.flag { background: var(--warn-soft); color: var(--warn); }
+  .initials { display: none; }
+
+  .notice {
+    border-left: 3px solid var(--warn); background: var(--warn-soft);
+    color: var(--warn); padding: 12px 14px; border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 14px;
+  }
+  .notice ul { margin: 8px 0 0; padding-left: 18px; }
+  .notice.ok { border-color: var(--good); background: var(--good-soft); color: var(--good); }
+  details summary { cursor: pointer; font-weight: 500; }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .foot { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .foot code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; }
+  .printhead { display: none; }
+
+  @media (max-width: 560px) {
+    .stats { gap: 20px; }
+    .stat .v { font-size: 32px; }
+  }
+
+  @media print {
+    :root { --ground: #fff; --surface: #fff; --ink: #000; --muted: #444; --line: #bbb; --line-strong: #666; --accent: #000; --accent-soft: #fff; }
+    body { background: #fff; font-size: 11.5pt; }
+    .wrap { padding: 0; gap: 14px; max-width: none; }
+    .noprint { display: none !important; }
+    .panel { border: 0; padding: 0; }
+    .printhead { display: block; }
+    .printhead h2 { color: #000; font-size: 13pt; letter-spacing: .06em; margin-bottom: 2px; }
+    .printhead .sub { font-size: 10pt; color: #333; }
+    thead { display: table-header-group; }
+    tbody tr { page-break-inside: avoid; }
+    tbody td { padding: 7px 8px; border-bottom: 1px solid #ccc; }
+    .cb input { display: none; }
+    .cb::before { content: ""; display: inline-block; width: 13px; height: 13px; border: 1.2px solid #000; }
+    tbody tr.done { color: #000; }
+    tbody tr.done .nm { text-decoration: none; }
+    .initials { display: table-cell; border-bottom: 1px solid #ccc; min-width: 90px; }
+    .tag.loc, .tag.merged { border: 1px solid #999; background: #fff; color: #000; }
+    a[href]::after { content: none; }
+  }
+</style>
+<style>
+  html, body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="noprint">
+    <p class="eyebrow">Cadet care packages</p>
+    <h1>Care Package Pickup List</h1>
+    <p class="lede">Drop in the Jotform CSV exports. The tool reads every delivery date inside each order, adds up the quantities, and builds a printable pickup checklist for the date you choose.</p>
+  </header>
+
+  <!-- LOAD -->
+  <section class="noprint" id="loadSection">
+    <div id="drop">
+      <p><strong>Drop CSV exports here</strong> — one or several, from any of the forms.</p>
+      <button class="primary" id="pickBtn" type="button">Choose files</button>
+      <button class="link" id="sampleBtn" type="button">or load sample data</button>
+      <input type="file" id="fileInput" accept=".csv,text/csv" multiple hidden>
+    </div>
+    <div class="filerow" id="fileRow"></div>
+    <div id="loadMsg"></div>
+  </section>
+
+  <!-- DATE PICKER -->
+  <section class="panel noprint" id="dateSection" hidden>
+    <h2>Delivery date</h2>
+    <div class="chips" id="dateChips"></div>
+    <div id="locWrap" hidden style="margin-top:20px">
+      <h2>Pickup location</h2>
+      <div class="chips" id="locChips"></div>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section class="panel noprint" id="summarySection" hidden>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sPackages">0</div><div class="k">Packages</div></div>
+      <div class="stat"><div class="v" id="sCadets">0</div><div class="k">Cadets</div></div>
+      <div class="stat"><div class="v" id="sMulti">0</div><div class="k">Multi-package</div></div>
+      <div class="stat"><div class="v" id="sMerged">0</div><div class="k">Merged orders</div></div>
+    </div>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="reviewSection" hidden></section>
+
+  <!-- CHECKLIST -->
+  <section class="panel" id="listSection" hidden>
+    <div class="printhead">
+      <h2 id="printTitle">Pickup checklist</h2>
+      <div class="sub" id="printSub"></div>
+    </div>
+    <div class="toolbar noprint">
+      <h2 style="margin:0">Checklist</h2>
+      <div class="right">
+        <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
+        <button type="button" id="resetBtn">Clear checks</button>
+        <button type="button" class="primary" id="printBtn">Print / save PDF</button>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table id="table">
+        <thead>
+          <tr>
+            <th class="cb noprint"></th>
+            <th class="cb" style="display:none"></th>
+            <th class="idx">#</th>
+            <th>Cadet</th>
+            <th>Phone</th>
+            <th>Pkgs</th>
+            <th>Notes</th>
+            <th class="initials">Picked up by</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="emptyMsg" hidden>No cadets match that search.</div>
+  </section>
+
+  <p class="foot noprint" id="foot" hidden>
+    Everything is read in your browser — no file ever leaves this page.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     1. CSV parsing — handles quoted fields containing commas,
+        newlines and doubled quotes, plus a UTF-8 BOM.
+     ============================================================ */
+  function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(field); field = "";
+      } else if (c === '\n') {
+        row.push(field); field = ""; rows.push(row); row = [];
+      } else if (c === '\r') {
+        // handled by the \n that follows; lone \r ends the row
+        if (text[i + 1] !== '\n') { row.push(field); field = ""; rows.push(row); row = []; }
+      } else field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => v.trim() !== ""));
+  }
+
+  /* ============================================================
+     2. Column detection — tolerant of header wording changes
+        ("Delivery Dates" vs "Delivery Dates:", extra workflow
+        columns, renamed fields).
+     ============================================================ */
+  const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  function detectColumns(headers, rows) {
+    const H = headers.map(norm);
+    const find = test => { const i = H.findIndex(test); return i === -1 ? null : i; };
+
+    const col = {
+      submitted: find(h => h.includes("submission") && h.includes("date")),
+      cadetName: find(h => h.includes("cadet") && h.includes("name")),
+      cadetPhone: find(h => h.includes("cadet") && h.includes("phone")),
+      buyerName: find(h => h.includes("name") && h.includes("purchasing")),
+      buyerPhone: find(h => h.includes("phone") && h.includes("purchasing")),
+      delivery: find(h => h.includes("delivery") && h.includes("date"))
+    };
+
+    // Fallback: whichever column most often looks like a payment/date block.
+    if (col.delivery === null) {
+      let best = -1, bestScore = 0;
+      for (let c = 0; c < headers.length; c++) {
+        let score = 0;
+        for (const r of rows) if (/quantity:\s*\d/i.test(r[c] || "")) score++;
+        if (score > bestScore) { bestScore = score; best = c; }
+      }
+      if (bestScore > 0) col.delivery = best;
+    }
+    // Fallback: a "name" column that isn't the purchaser's.
+    if (col.cadetName === null) {
+      col.cadetName = find(h => h.includes("name") && !h.includes("purchasing") && !h.includes("first") && !h.includes("last"));
+    }
+    if (col.cadetPhone === null) {
+      col.cadetPhone = find(h => h.includes("phone") && !h.includes("purchasing"));
+    }
+    return col;
+  }
+
+  /* ============================================================
+     3. Delivery-date extraction — the part that trips people up.
+        One order can list several dates, each with its own
+        quantity; the same block also carries subtotal/tax/total
+        lines that must not be mistaken for dates.
+     ============================================================ */
+  const MONTHS = { january:0, february:1, march:2, april:3, may:4, june:5, july:6,
+                   august:7, september:8, october:9, november:10, december:11,
+                   jan:0, feb:1, mar:2, apr:3, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
+  const MONTH_NAMES = ["January","February","March","April","May","June","July",
+                       "August","September","October","November","December"];
+  const SKIP = /^(sub\s*total|subtotal|tax|total|transaction\s*id|payment\s*method|payment\s*information|coupon|discount|shipping|amount|currency|gateway)\b/i;
+
+  function extractDates(raw, fallbackYear) {
+    const out = [];   // { key, label, qty, amount, assumedQty, assumedYear }
+    if (!raw) return out;
+    for (const line of String(raw).split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t || SKIP.test(t)) continue;
+      const m = t.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(\d{4})?\b([\s\S]*)$/);
+      if (!m) continue;
+      const mon = MONTHS[m[1].toLowerCase()];
+      if (mon === undefined) continue;
+      const day = parseInt(m[2], 10);
+      if (!(day >= 1 && day <= 31)) continue;
+      let year = m[3] ? parseInt(m[3], 10) : null;
+      const assumedYear = year === null;
+      if (assumedYear) year = fallbackYear || new Date().getFullYear();
+      const rest = m[4] || "";
+      const qm = rest.match(/quantity\s*:?\s*(\d+)/i);
+      const am = rest.match(/amount\s*:?\s*([\d,]+(?:\.\d+)?)/i);
+      out.push({
+        key: year + "-" + String(mon + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0"),
+        label: MONTH_NAMES[mon] + " " + day + ", " + year,
+        qty: qm ? parseInt(qm[1], 10) : 1,
+        amount: am ? parseFloat(am[1].replace(/,/g, "")) : null,
+        assumedQty: !qm,
+        assumedYear: assumedYear
+      });
+    }
+    return out;
+  }
+
+  /* ============================================================
+     4. Reading one file into orders
+     ============================================================ */
+  const digits = s => (s || "").replace(/\D/g, "");
+  function fmtPhone(s) {
+    const d = digits(s);
+    const t = d.length === 11 && d[0] === "1" ? d.slice(1) : d;
+    if (t.length === 10) return "(" + t.slice(0, 3) + ") " + t.slice(3, 6) + "-" + t.slice(6);
+    return (s || "").trim();
+  }
+  function titleFromFilename(name) {
+    return name.replace(/\.csv$/i, "")
+               .replace(/[ _-]*\d{4}-\d{2}-\d{2}[ _-]*\d{1,2}[_:]\d{2}[_:]\d{2}\s*$/, "")
+               .replace(/[ _-]*\d{4}-\d{2}-\d{2}\s*$/, "")
+               .replace(/[_]+/g, " ")
+               .replace(/\s+/g, " ")
+               .trim() || name;
+  }
+
+  function readFile(name, text) {
+    const rows = parseCSV(text);
+    if (rows.length < 2) return { error: "That file has no data rows." };
+    const headers = rows[0];
+    const col = detectColumns(headers, rows.slice(1));
+    if (col.delivery === null) return { error: "No delivery-date column found in " + name + "." };
+    if (col.cadetName === null) return { error: "No cadet-name column found in " + name + "." };
+
+    const location = titleFromFilename(name);
+    const orders = [], problems = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const cell = v => (v === null || v === undefined ? "" : (r[v] || "").trim());
+      const name_ = cell(col.cadetName);
+      const rawDelivery = col.delivery !== null ? (r[col.delivery] || "") : "";
+      const submitted = cell(col.submitted);
+      const yr = (submitted.match(/\b(20\d{2})\b/) || [])[1];
+      const dates = extractDates(rawDelivery, yr ? parseInt(yr, 10) : null);
+
+      const order = {
+        row: i + 1,
+        location: location,
+        name: name_,
+        phone: cell(col.cadetPhone),
+        buyerName: cell(col.buyerName),
+        buyerPhone: cell(col.buyerPhone),
+        submitted: submitted,
+        dates: dates,
+        flags: []
+      };
+
+      if (!name_) order.flags.push("No cadet name on this row");
+      if (dates.length === 0) order.flags.push("No delivery date could be read");
+      if (dates.some(d => d.assumedQty)) order.flags.push("Quantity missing — counted as 1");
+      if (dates.some(d => d.assumedYear)) order.flags.push("Year missing — assumed from submission date");
+
+      // Reconcile against the order's own subtotal when both are present.
+      const sub = (rawDelivery.match(/sub\s*total\s*:?\s*\$?\s*([\d,]+(?:\.\d+)?)/i) || [])[1];
+      const known = dates.filter(d => d.amount !== null);
+      if (sub && known.length === dates.length && dates.length) {
+        const calc = known.reduce((a, d) => a + d.amount * d.qty, 0);
+        const expected = parseFloat(sub.replace(/,/g, ""));
+        if (Math.abs(calc - expected) > 0.02) {
+          order.flags.push("Line items ($" + calc.toFixed(2) + ") don't match the order subtotal ($" + expected.toFixed(2) + ")");
+        }
+      }
+      if (order.flags.length) problems.push(order);
+      orders.push(order);
+    }
+    return { location: location, orders: orders, problems: problems, rowCount: rows.length - 1 };
+  }
+
+  /* ============================================================
+     5. State
+     ============================================================ */
+  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sample: false };
+  const checked = new Set();
+  const $ = id => document.getElementById(id);
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  function addFile(name, text) {
+    const res = readFile(name, text);
+    if (res.error) { flash(res.error, true); return; }
+    if (state.files.some(f => f.name === name)) {
+      flash("“" + name + "” is already loaded — skipped so nothing gets double-counted.", true);
+      return;
+    }
+    state.files.push({ name: name, location: res.location, rowCount: res.rowCount });
+    state.orders = state.orders.concat(res.orders);
+    state.problems = state.problems.concat(res.problems);
+    render();
+  }
+
+  let flashTimer;
+  function flash(msg, warn) {
+    const el = $("loadMsg");
+    el.innerHTML = '<div class="notice' + (warn ? "" : " ok") + '" style="margin-top:14px">' + esc(msg) + "</div>";
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { el.innerHTML = ""; }, 7000);
+  }
+
+  /* ============================================================
+     6. Aggregation for the selected date
+     ============================================================ */
+  function dateTotals() {
+    const map = new Map();
+    for (const o of state.orders) {
+      for (const d of o.dates) {
+        if (!map.has(d.key)) map.set(d.key, { key: d.key, label: d.label, qty: 0 });
+        map.get(d.key).qty += d.qty;
+      }
+    }
+    return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+  }
+
+  function locations() {
+    return [...new Set(state.orders.map(o => o.location))];
+  }
+
+  function buildList() {
+    const byCadet = new Map();
+    for (const o of state.orders) {
+      if (state.loc !== "ALL" && o.location !== state.loc) continue;
+      let qty = 0;
+      for (const d of o.dates) if (d.key === state.date) qty += d.qty;
+      if (!qty) continue;
+      const key = (digits(o.phone) || norm(o.name)) + "|" + o.location;
+      if (!byCadet.has(key)) {
+        byCadet.set(key, {
+          key: key, name: o.name, phone: o.phone, location: o.location,
+          qty: 0, orders: 0, flags: new Set(), names: new Set()
+        });
+      }
+      const e = byCadet.get(key);
+      e.qty += qty;
+      e.orders += 1;
+      e.names.add(o.name);
+      o.flags.forEach(f => { if (!/no delivery date/i.test(f)) e.flags.add(f); });
+      if (!e.phone && o.phone) e.phone = o.phone;
+    }
+    const lastName = n => { const p = String(n).trim().split(/\s+/); return (p[p.length - 1] || "").toLowerCase(); };
+    return [...byCadet.values()].sort((a, b) =>
+      lastName(a.name).localeCompare(lastName(b.name)) || a.name.localeCompare(b.name));
+  }
+
+  /* ============================================================
+     7. Render
+     ============================================================ */
+  function render() {
+    const has = state.orders.length > 0;
+    $("dateSection").hidden = !has;
+    $("summarySection").hidden = !has;
+    $("listSection").hidden = !has;
+    $("foot").hidden = !has;
+    renderFiles();
+    if (!has) { $("reviewSection").hidden = true; return; }
+
+    // date chips
+    const totals = dateTotals();
+    if (!state.date || !totals.some(t => t.key === state.date)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = totals.find(t => t.key >= today);
+      state.date = (upcoming || totals[totals.length - 1] || {}).key || null;
+    }
+    $("dateChips").innerHTML = totals.map(t => {
+      const past = t.key < new Date().toISOString().slice(0, 10);
+      return '<button type="button" class="chip' + (past ? " past" : "") + '" data-date="' + t.key + '"' +
+             ' aria-pressed="' + (t.key === state.date) + '">' + esc(t.label) +
+             '<span class="count">' + t.qty + "</span></button>";
+    }).join("");
+
+    // location chips
+    const locs = locations();
+    $("locWrap").hidden = locs.length < 2;
+    if (locs.length >= 2) {
+      $("locChips").innerHTML = ['<button type="button" class="chip" data-loc="ALL" aria-pressed="' +
+        (state.loc === "ALL") + '">All locations</button>']
+        .concat(locs.map(l => '<button type="button" class="chip" data-loc="' + esc(l) + '" aria-pressed="' +
+          (state.loc === l) + '">' + esc(l) + "</button>")).join("");
+    } else state.loc = "ALL";
+
+    const list = buildList();
+    const packages = list.reduce((a, e) => a + e.qty, 0);
+    $("sPackages").textContent = packages;
+    $("sCadets").textContent = list.length;
+    $("sMulti").textContent = list.filter(e => e.qty > 1).length;
+    $("sMerged").textContent = list.filter(e => e.orders > 1).length;
+
+    const dLabel = (totals.find(t => t.key === state.date) || {}).label || "";
+    $("printTitle").textContent = "Care package pickup — " + dLabel;
+    $("printSub").textContent = (state.loc === "ALL" ? locs.join(" + ") : state.loc) +
+      " · " + list.length + " cadets · " + packages + " packages" +
+      (state.sample ? "  ·  SAMPLE DATA" : "");
+
+    renderReview();
+    renderRows(list);
+  }
+
+  function renderFiles() {
+    $("fileRow").innerHTML = state.files.map((f, i) =>
+      '<span class="filechip">' + esc(f.location) +
+      '<span class="n">' + f.rowCount + " orders</span>" +
+      '<button type="button" data-rm="' + i + '" title="Remove">&times;</button></span>').join("");
+  }
+
+  function renderReview() {
+    const el = $("reviewSection");
+    const probs = state.problems.filter(o => state.loc === "ALL" || o.location === state.loc);
+    if (!probs.length) { el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    el.className = "noprint";
+    const items = probs.slice(0, 60).map(o =>
+      "<li><strong>" + esc(o.name || "(no name)") + "</strong> — " + esc(o.location) +
+      ", row " + o.row + ": " + esc(o.flags.join("; ")) + "</li>").join("");
+    el.innerHTML =
+      '<div class="notice"><details' + (probs.length <= 4 ? " open" : "") + '>' +
+      "<summary>" + probs.length + " order" + (probs.length === 1 ? "" : "s") +
+      " need a look before you trust the count</summary><ul>" + items +
+      (probs.length > 60 ? "<li>… and " + (probs.length - 60) + " more</li>" : "") +
+      "</ul></details></div>";
+  }
+
+  function renderRows(list) {
+    const q = $("search").value.trim().toLowerCase();
+    const shown = q ? list.filter(e =>
+      e.name.toLowerCase().includes(q) || digits(e.phone).includes(digits(q) || "\u0000")) : list;
+    $("emptyMsg").hidden = shown.length > 0;
+    $("tbody").innerHTML = shown.map((e, i) => {
+      const tags = [];
+      if (state.loc === "ALL" && locations().length > 1) tags.push('<span class="tag loc">' + esc(e.location) + "</span>");
+      if (e.orders > 1) tags.push('<span class="tag merged">' + e.orders + " orders merged</span>");
+      if (e.names.size > 1) tags.push('<span class="tag flag">Name varies: ' + esc([...e.names].join(" / ")) + "</span>");
+      e.flags.forEach(f => tags.push('<span class="tag flag">' + esc(f) + "</span>"));
+      const on = checked.has(e.key);
+      return "<tr" + (on ? ' class="done"' : "") + ">" +
+        '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '"' + (on ? " checked" : "") +
+        ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
+        '<td class="idx num">' + (i + 1) + "</td>" +
+        '<td class="nm">' + esc(e.name) + "</td>" +
+        '<td class="ph">' + esc(fmtPhone(e.phone)) + "</td>" +
+        '<td class="qty' + (e.qty > 1 ? " multi" : "") + '">' + e.qty + "</td>" +
+        "<td>" + tags.join(" ") + "</td>" +
+        '<td class="initials"></td></tr>';
+    }).join("");
+  }
+
+  /* ============================================================
+     8. Events
+     ============================================================ */
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", e => {
+    const files = [...(e.dataTransfer ? e.dataTransfer.files : [])];
+    files.forEach(loadFileObj);
+  });
+  $("pickBtn").addEventListener("click", () => $("fileInput").click());
+  $("fileInput").addEventListener("change", e => {
+    [...e.target.files].forEach(loadFileObj);
+    e.target.value = "";
+  });
+
+  function loadFileObj(file) {
+    if (!/\.csv$/i.test(file.name)) { flash("“" + file.name + "” isn't a CSV — skipped.", true); return; }
+    const fr = new FileReader();
+    fr.onload = () => { state.sample = false; addFile(file.name, String(fr.result)); };
+    fr.onerror = () => flash("Couldn't read “" + file.name + "”.", true);
+    fr.readAsText(file);
+  }
+
+  $("fileRow").addEventListener("click", e => {
+    const b = e.target.closest("[data-rm]");
+    if (!b) return;
+    const i = +b.dataset.rm;
+    const f = state.files[i];
+    state.files.splice(i, 1);
+    state.orders = state.orders.filter(o => o.location !== f.location);
+    state.problems = state.problems.filter(o => o.location !== f.location);
+    if (state.loc === f.location) state.loc = "ALL";
+    render();
+  });
+
+  $("dateChips").addEventListener("click", e => {
+    const b = e.target.closest("[data-date]");
+    if (!b) return;
+    state.date = b.dataset.date; checked.clear(); render();
+  });
+  $("locChips").addEventListener("click", e => {
+    const b = e.target.closest("[data-loc]");
+    if (!b) return;
+    state.loc = b.dataset.loc; render();
+  });
+  $("search").addEventListener("input", () => renderRows(buildList()));
+  $("tbody").addEventListener("change", e => {
+    const cb = e.target.closest("input[type=checkbox]");
+    if (!cb) return;
+    if (cb.checked) checked.add(cb.dataset.key); else checked.delete(cb.dataset.key);
+    cb.closest("tr").classList.toggle("done", cb.checked);
+  });
+  $("resetBtn").addEventListener("click", () => { checked.clear(); renderRows(buildList()); });
+  $("printBtn").addEventListener("click", () => window.print());
+
+  /* ---- sample data ---- */
+  const SAMPLE = '"Submission Date","Cadet\'s Name","Cadet\'s Email","Cadets Phone Number",' +
+    '"Your Name (if you are purchasing for someone else)","Your Phone Number  (if you are purchasing for someone else)","Delivery Dates"\n' +
+    '"Sep 17, 2026","Avery Lindqvist",a.lindqvist@example.com,"(719) 555-0142","Dana Lindqvist","(719) 555-0198",' +
+    '"September 24th, 2026 (Amount: 25.00 USD, Quantity: 1)\nOctober 15th, 2026 (Amount: 25.00 USD, Quantity: 1)\n Subtotal: 50.00 USD\n Tax: 4.66 USD\nTotal: $54.66"\n' +
+    '"Sep 16, 2026","Marcus Oyelaran",m.oye@example.com,"(210) 555-0117","Grace Oyelaran","(210) 555-0133",' +
+    '"September 24th, 2026 (Amount: 25.00 USD, Quantity: 3)\n Subtotal: 75.00 USD\n Tax: 7.00 USD\nTotal: $82.00"\n' +
+    '"Sep 15, 2026","Priya Raghunathan",p.ragh@example.com,"(505) 555-0176","","",' +
+    '"October 15th, 2026 (Amount: 25.00 USD, Quantity: 1)\n Subtotal: 25.00 USD"\n' +
+    '"Sep 12, 2026","Avery Lindqvist",a.lindqvist@example.com,"(719) 555-0142","Rob Lindqvist","(719) 555-0155",' +
+    '"September 24th, 2026 (Amount: 25.00 USD, Quantity: 2)\n Subtotal: 50.00 USD"\n' +
+    '"Sep 10, 2026","Tomás Becker",t.becker@example.com,"(303) 555-0161","","",' +
+    '"September 24th, 2026 (Amount: 25.00 USD, Quantity: 1)\nNovember 19th, 2026 (Amount: 25.00 USD, Quantity: 1)\n Subtotal: 50.00 USD"';
+
+  $("sampleBtn").addEventListener("click", () => {
+    state.files = []; state.orders = []; state.problems = []; state.loc = "ALL"; state.date = null;
+    checked.clear(); state.sample = true;
+    addFile("Sample Care Package Form.csv", SAMPLE);
+    flash("Sample data loaded — these are made-up cadets. Remove the file above and drop in your own exports.");
+  });
+})();
+</script>
+
+</body>
+</html>
