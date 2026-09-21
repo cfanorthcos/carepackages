@@ -25,9 +25,18 @@ There is no build step and no dependencies to install. The only external request
 
 Two contact tools, both zero-infrastructure — no API key, no server, nothing to keep running or pay for.
 
-**Email this list…** builds the reminder for the selected date: every cadet address ready to paste into **Bcc**, plus a subject and message with the right day, building and cut-off time already filled in. The building and time are read out of the form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its own correct details automatically. If the export has the reminder opt-in field, a toggle narrows the list to cadets who ticked it. **Mark these cadets emailed** then records the send in one click.
+**Email this list…** builds the reminder for the selected date as **two separate sends**, because a Bcc blast carries one message and cadets and purchasers need different wording:
 
-**Tap-to-text** — on the checklist each phone number is a link that opens your own phone's Messages app with that cadet's number and a short, personalised message prefilled. Nothing is sent automatically; you review and hit send. This is for chasing the handful who have not collected by the cut-off, one at a time, rather than bulk messaging.
+- **Cadets** — "Your care package is ready to collect tonight", written to the person who has to walk over and get it.
+- **Parents** — "The care package you ordered is ready for your cadet to collect", noting that the cadet has been emailed directly too.
+
+Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready. Neither message can name an individual, since both go to the whole list at once.
+
+A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters. The day, building and cut-off time are read out of each form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its correct details automatically.
+
+The panel also warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
+
+**Tap-to-text** — texting is **cadet-only**; parents are emailed, not messaged. On the checklist each cadet's phone number is a link that opens your own phone's Messages app with that cadet's number and a short, personalised message prefilled. Nothing is sent automatically; you review and hit send. This is for chasing the handful who have not collected by the cut-off, one at a time, rather than bulk messaging.
 
 Bulk SMS through a platform (Quo, Twilio, and the rest) additionally requires US carrier registration (A2P 10DLC) and per-cadet consent, which is why email is the primary channel here.
 

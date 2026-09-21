@@ -245,6 +245,8 @@
   .mailhead label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .mailhead button { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; padding: 0 4px; color: var(--muted); }
   .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .warnline:empty { display: none; }
+  .warnline { color: var(--warn); }
   .mailgrid { display: flex; flex-direction: column; gap: 4px; }
   .mailgrid label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
   .mailgrid .n { text-transform: none; letter-spacing: 0; }
@@ -256,6 +258,8 @@
   }
   #mailTo { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
   .mailfoot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  .audience { margin-bottom: 10px; }
+  .audience .chip { padding: 6px 12px; font-size: 13.5px; }
 
   .notice {
     border-left: 3px solid var(--warn); background: var(--warn-soft);
@@ -421,7 +425,13 @@
         <label id="optinWrap" hidden><input type="checkbox" id="optinOnly"> Only cadets who ticked the reminder box (<span id="optinCount">0</span>)</label>
         <button type="button" id="mailClose" aria-label="Close">&times;</button>
       </div>
-      <p class="hint">Paste the addresses into the <strong>Bcc</strong> field so nobody sees anyone else's email.</p>
+      <div class="chips audience">
+        <button type="button" class="chip" data-who="cadet" aria-pressed="true">Cadets <span class="count" id="cCount">0</span></button>
+        <button type="button" class="chip" data-who="parent" aria-pressed="false">Parents <span class="count" id="pCount">0</span></button>
+      </div>
+      <p class="hint">Two separate sends, each with its own wording. Paste the addresses into
+        <strong>Bcc</strong> so nobody sees anyone else's. Texting stays cadet-only.</p>
+      <p class="hint warnline" id="mailWarn"></p>
       <div class="mailgrid">
         <label for="mailTo">Addresses <span id="toCount" class="n"></span></label>
         <div class="mailrow"><textarea id="mailTo" rows="3" readonly></textarea><button type="button" data-copy="mailTo">Copy</button></div>
@@ -431,7 +441,7 @@
         <div class="mailrow"><textarea id="mailBody" rows="9"></textarea><button type="button" data-copy="mailBody">Copy</button></div>
       </div>
       <div class="mailfoot">
-        <button type="button" class="primary" id="markEmailed">Mark these cadets emailed</button>
+        <button type="button" class="primary" id="markEmailed">Mark this date's reminder sent</button>
         <span class="hint" id="mailMsg"></span>
       </div>
     </div>
@@ -517,6 +527,7 @@
       cadetPhone: find(h => h.includes("cadet") && h.includes("phone")),
       buyerName: find(h => h.includes("name") && h.includes("purchasing")),
       buyerPhone: find(h => h.includes("phone") && h.includes("purchasing")),
+      buyerEmail: find(h => h.includes("email") && h.includes("purchasing")),
       delivery: find(h => h.includes("delivery") && h.includes("date"))
     };
 
@@ -651,6 +662,7 @@
         phone: cell(col.cadetPhone),
         buyerName: cell(col.buyerName),
         buyerPhone: cell(col.buyerPhone),
+        buyerEmail: cell(col.buyerEmail),
         submitted: submitted,
         consent: col.consent !== null && /remind/i.test(cell(col.consent)),
         dates: dates,
@@ -681,7 +693,7 @@
   /* ============================================================
      5. State
      ============================================================ */
-  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", sample: false };
+  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", who: "cadet", sample: false };
 
   /* Progress per cadet per date: p = picked up, e = emailed, t = texted.
      Emails go out days before the pickup, so this has to outlive a reload.
@@ -725,6 +737,18 @@
     flashTimer = setTimeout(() => { el.innerHTML = ""; }, 7000);
   }
 
+  /* Exact-match only — a fuzzy rule would flag real domains like
+     frontier.com or optonline.net, which both appear in these exports. */
+  const BAD_DOMAINS = new Set([
+    "gamil.com","gmial.com","gmai.com","gmal.com","gnail.com","gmaill.com","gmail.co","gmail.cm","gmil.com","gmail.con",
+    "yahoo.con","yaho.com","yahooo.com","yahoo.co","yhaoo.com","yahoo.cm",
+    "hotmial.com","hotmai.com","hotmall.com","hotmail.co","hotmail.con",
+    "iclod.com","icoud.com","icloud.co","icloud.con",
+    "outlok.com","outllok.com","oulook.com","outlook.co",
+    "aol.co","aol.con","comcast.ne","comcst.net"
+  ]);
+  const looksMistyped = a => BAD_DOMAINS.has(String(a).split("@")[1] || "");
+
   function pickupFor(location) {
     const f = state.files.find(x => x.location === location);
     return (f && f.pickup) || { place: "", time: "" };
@@ -755,20 +779,39 @@
     // "?&body=" is the spelling both iOS and Android accept.
     return "sms:+1" + t + "?&body=" + encodeURIComponent(smsText(e));
   }
-  function emailSubject() {
-    return "Care package pickup \u2014 " + (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
+  function emailSubject(who) {
+    const when = (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
+    return who === "parent" ? "Care package pickup \u2014 " + when
+                            : "Your care package is ready \u2014 " + when;
   }
-  function emailBody(list) {
+  /* Cadets and purchasers get different letters. A Bcc blast carries one
+     message, so each audience is its own send — the cadet is told to come
+     and collect, the purchaser is told their order is ready and that the
+     cadet has been told too. Neither can name an individual, since both
+     go to the whole list at once. */
+  function emailBody(list, who) {
     const places = [...new Set(list.map(e => e.location))].map(pickupFor);
     const p = places[0] || { place: "", time: "" };
     const same = places.every(x => x.place === p.place && x.time === p.time);
-    return "Your Chick-fil-A care package is ready for pickup.\n\n"
-      + "When:  " + (dayName() ? dayName() + ", " : "") + dateLabel()
+    const when = "When:  " + (dayName() ? dayName() + ", " : "") + dateLabel()
       + (same && p.time ? ", by " + p.time : "") + "\n"
-      + (same && p.place ? "Where: " + p.place + "\n" : "")
-      + "\nOrders that are not collected by the cut-off are given away, and they cannot be "
-      + "refunded or moved to another date. If you cannot make it, you are welcome to send "
-      + "someone else in your place.\n\nThank you!\nChick-fil-A North Colorado Springs";
+      + (same && p.place ? "Where: " + p.place + "\n" : "");
+    const by = same && p.time ? " by " + p.time : " by the cut-off";
+
+    if (who === "parent") {
+      return "The Chick-fil-A care package you ordered is ready for your cadet to collect tonight.\n\n"
+        + when
+        + "\nWe have emailed your cadet directly as well. Orders not collected" + by
+        + " are given away, and they cannot be refunded or moved to another date \u2014 if your "
+        + "cadet cannot make it, they are welcome to send someone in their place.\n\n"
+        + "Thank you for supporting our cadets!\nChick-fil-A North Colorado Springs";
+    }
+    return "Your Chick-fil-A care package is ready to collect tonight.\n\n"
+      + when
+      + "\nPlease come by before the cut-off. Anything not collected" + by + " is given away, "
+      + "and orders cannot be refunded or moved to another date. If you cannot make it, you are "
+      + "welcome to send someone in your place.\n\n"
+      + "See you tonight!\nChick-fil-A North Colorado Springs";
   }
 
   /* ============================================================
@@ -804,7 +847,9 @@
       if (!byCadet.has(key)) {
         byCadet.set(key, {
           key: key, name: o.name, phone: o.phone, email: o.email, location: o.location,
-          consent: false, qty: 0, orders: 0, flags: new Set(), names: new Set()
+          consent: false, qty: 0, orders: 0, flags: new Set(), names: new Set(),
+          /* The cadet gets the text; the cadet AND whoever bought it get the email. */
+          cadetEmails: new Set(), parentEmails: new Set(), buyerNoEmail: 0
         });
       }
       const e = byCadet.get(key);
@@ -813,6 +858,11 @@
       e.names.add(o.name);
       if (o.consent) e.consent = true;
       if (!e.email && o.email) e.email = o.email;
+      const addr = v => { const t = String(v || "").trim(); return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(t) ? t.toLowerCase() : ""; };
+      const ca = addr(o.email), pa = addr(o.buyerEmail);
+      if (ca) e.cadetEmails.add(ca);
+      if (pa) e.parentEmails.add(pa);
+      else if (String(o.buyerName || "").trim()) e.buyerNoEmail++;
       o.flags.forEach(f => { if (!/no delivery date/i.test(f)) e.flags.add(f); });
       if (!e.phone && o.phone) e.phone = o.phone;
     }
@@ -1067,12 +1117,40 @@
     if (opt === 0) $("optinOnly").checked = false;
 
     const list = mailerList();
-    const addrs = [...new Set(list.map(e => (e.email || "").trim()).filter(Boolean))];
+
+    /* A purchaser who used their cadet's own address belongs to the cadet
+       send, not the parent one — otherwise they get both letters. */
+    const cadet = new Set(), parent = new Set();
+    list.forEach(e => e.cadetEmails.forEach(a => cadet.add(a)));
+    list.forEach(e => e.parentEmails.forEach(a => { if (!cadet.has(a)) parent.add(a); }));
+    $("cCount").textContent = cadet.size;
+    $("pCount").textContent = parent.size;
+    [...$("mailer").querySelectorAll("[data-who]")].forEach(b =>
+      b.setAttribute("aria-pressed", String(b.dataset.who === state.who)));
+
+    const addrs = state.who === "parent" ? [...parent] : [...cadet];
     $("mailTo").value = addrs.join(", ");
-    $("toCount").textContent = "— " + addrs.length + " address" + (addrs.length === 1 ? "" : "es") +
-      (addrs.length < list.length ? " (" + (list.length - addrs.length) + " cadet(s) have none)" : "");
-    $("mailSub").value = emailSubject();
-    $("mailBody").value = emailBody(list);
+    $("toCount").textContent = "— " + addrs.length + " " +
+      (state.who === "parent" ? "purchaser" : "cadet") + " address" + (addrs.length === 1 ? "" : "es");
+
+    const warn = [];
+    if (state.who === "cadet") {
+      const noCadet = list.filter(e => !e.cadetEmails.size).length;
+      if (noCadet) warn.push(noCadet + " cadet" + (noCadet === 1 ? " has" : "s have") + " no email on file");
+    } else {
+      const noParent = list.reduce((a, e) => a + e.buyerNoEmail, 0);
+      if (noParent) warn.push(noParent + (noParent === 1 ? " order names" : " orders name") + " a purchaser with no email");
+      const selfBuy = list.filter(e => !e.parentEmails.size && !e.buyerNoEmail).length;
+      if (selfBuy) warn.push(selfBuy + " cadet" + (selfBuy === 1 ? "" : "s") + " ordered for themselves, so there is no purchaser to email");
+    }
+    const typos = addrs.filter(looksMistyped);
+    if (typos.length) warn.push((typos.length === 1 ? "this address looks mistyped and will bounce: "
+      : typos.length + " addresses look mistyped and will bounce: ") + typos.join(", "));
+    if (addrs.length > 120) warn.push("most mail providers cap recipients per message — consider one location at a time");
+    $("mailWarn").textContent = warn.join(" · ");
+
+    $("mailSub").value = emailSubject(state.who);
+    $("mailBody").value = emailBody(list, state.who);
   }
   $("emailBtn").addEventListener("click", () => {
     const open = $("mailer").hidden;
@@ -1081,6 +1159,12 @@
   });
   $("mailClose").addEventListener("click", () => { $("mailer").hidden = true; });
   $("optinOnly").addEventListener("change", fillMailer);
+  $("mailer").addEventListener("click", e => {
+    const b = e.target.closest("[data-who]");
+    if (!b || b.dataset.who === state.who) return;
+    state.who = b.dataset.who;
+    fillMailer();
+  });
 
   $("mailer").addEventListener("click", async e => {
     const b = e.target.closest("[data-copy]");
@@ -1097,7 +1181,7 @@
   });
 
   $("markEmailed").addEventListener("click", () => {
-    const list = mailerList().filter(e => e.email);
+    const list = mailerList().filter(e => e.cadetEmails.size || e.parentEmails.size);
     list.forEach(e => setMark(e.key, "e", true));
     $("mailMsg").textContent = list.length + " cadet" + (list.length === 1 ? "" : "s") + " marked emailed.";
     setTimeout(() => { $("mailMsg").textContent = ""; }, 4000);
