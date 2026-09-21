@@ -430,7 +430,8 @@
           <option value="qty">Sort: most packages</option>
         </select>
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
-        <button type="button" id="emailBtn">Email this list…</button>
+        <button type="button" id="copyNums">Copy numbers</button>
+        <button type="button" id="emailBtn">Reminders…</button>
         <button type="button" id="resetBtn">Clear marks</button>
         <button type="button" class="primary" id="printBtn">Print / save PDF</button>
       </div>
@@ -444,33 +445,19 @@
       <div class="chips audience">
         <button type="button" class="chip" data-who="cadet" aria-pressed="true">Cadets <span class="count" id="cCount">0</span></button>
         <button type="button" class="chip" data-who="parent" aria-pressed="false">Parents <span class="count" id="pCount">0</span></button>
-        <button type="button" class="chip" data-who="sms" aria-pressed="false">Text message</button>
+        <button type="button" class="chip" data-who="sms" aria-pressed="false">Phone numbers <span class="count" id="nCount">0</span></button>
       </div>
       <div class="windows" id="windows"></div>
       <p class="hint" id="mailHint"></p>
       <p class="hint warnline" id="mailWarn"></p>
       <div class="mailgrid">
-        <label for="mailTo">Addresses <span id="toCount" class="n"></span></label>
-        <div class="mailrow"><textarea id="mailTo" rows="3" readonly></textarea><button type="button" data-copy="mailTo">Copy</button></div>
-        <label for="mailSub">Subject</label>
-        <div class="mailrow"><textarea id="mailSub" rows="1"></textarea><button type="button" data-copy="mailSub">Copy</button></div>
-        <label for="mailBody">Message</label>
-        <div class="mailrow"><textarea id="mailBody" rows="9"></textarea><button type="button" data-copy="mailBody">Copy</button></div>
+        <label for="mailTo"><span id="toLabel">Addresses</span> <span id="toCount" class="n"></span></label>
+        <div class="mailrow"><textarea id="mailTo" rows="5" readonly></textarea><button type="button" class="primary" data-copy="mailTo" id="copyTo">Copy all</button></div>
+        <label for="mailSub" id="mailSubRow">Subject</label>
+        <div class="mailrow" id="mailSubRowB"><textarea id="mailSub" rows="1"></textarea><button type="button" data-copy="mailSub">Copy</button></div>
+        <label for="mailBody" id="mailBodyRow">Message</label>
+        <div class="mailrow" id="mailBodyRowB"><textarea id="mailBody" rows="9"></textarea><button type="button" data-copy="mailBody">Copy</button></div>
       </div>
-      <div class="mailgrid" id="smsPane" hidden>
-        <label for="smsTpl">Message sent by the phone links</label>
-        <div class="mailrow"><textarea id="smsTpl" rows="5"></textarea></div>
-        <p class="hint" style="margin:6px 0 0">
-          <code>{first}</code> first name · <code>{day}</code> today / tomorrow / this Thursday ·
-          <code>{place}</code> pickup point · <code>{window}</code> 6:30–7:30 PM ·
-          <code>{from}</code> opening time · <code>{time}</code> cut-off ·
-          <code>{packages}</code> appears only when they have more than one · <code>{qty}</code> the number alone
-        </p>
-        <label>Preview <span class="n" id="smsMeta"></span></label>
-        <p class="smsprev" id="smsPrev"></p>
-        <div><button type="button" id="smsReset">Reset to default</button></div>
-      </div>
-
       <div class="mailfoot">
         <button type="button" class="primary" id="markEmailed">Mark this date's reminder sent</button>
         <span class="hint" id="mailMsg"></span>
@@ -849,39 +836,16 @@
     return "on " + (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
   }
 
-  /* The text is a template you can edit in the reminder panel, so the
-     wording can change without touching the code. */
-  const SMS_DEFAULT = "Hi {first}, this is Chick-fil-A. Reminder: your care package can be picked up " +
-    "{day}, {window}, at {place}.{packages} Unclaimed orders are given away after {time}. " +
-    "Can't make it? You can send someone in your place.";
-  const SMS_STORE = "cfa-carepackages-sms-v1";
-  let smsTemplate = SMS_DEFAULT;
-  try { smsTemplate = localStorage.getItem(SMS_STORE) || SMS_DEFAULT; } catch (err) {}
-  function saveTemplate() { try { localStorage.setItem(SMS_STORE, smsTemplate); } catch (err) {} }
-
-  function smsText(e) {
-    const p = pickupFor(e.location);
-    return smsTemplate
-      .replace(/\{day\}/g, whenPhrase())
-      .replace(/\{window\}/g, windowFor(e.location))
-      .replace(/\{from\}/g, openTime(e.location))
-      .replace(/\{first\}/g, firstOf(e.name))
-      .replace(/\{name\}/g, e.name)
-      .replace(/\{place\}/g, p.place || "the pickup point")
-      .replace(/\{time\}/g, p.time || "the cut-off")
-      .replace(/\{qty\}/g, String(e.qty))
-      // Only says anything when there is more than one to collect.
-      .replace(/\s*\{packages\}/g, e.qty > 1 ? " You have " + e.qty + " packages." : "")
-      .replace(/[ \t]{2,}/g, " ")
-      .trim();
-  }
-  function smsHref(e) {
-    const d = digits(e.phone);
+  const E164 = p => {
+    const d = digits(p);
     const t = d.length === 11 && d[0] === "1" ? d.slice(1) : d;
-    if (t.length !== 10) return "";
-    // "?&body=" is the spelling both iOS and Android accept.
-    return "sms:+1" + t + "?&body=" + encodeURIComponent(smsText(e));
+    return t.length === 10 ? "+1" + t : "";
+  };
+  function smsHref(e) {
+    const n = E164(e.phone);
+    return n ? "sms:" + n : "";   // opens a blank message to them; you write it
   }
+
   function emailSubject(who) {
     const n = daysAway();
     const soon = n === 0 ? "today" : n === 1 ? "tomorrow" : "";
@@ -1209,6 +1173,20 @@
   });
   $("printBtn").addEventListener("click", () => window.print());
 
+  async function copyField(el, btn) {
+    el.focus();
+    el.select();
+    el.setSelectionRange(0, el.value.length);
+    let ok = false;
+    try { await navigator.clipboard.writeText(el.value); ok = true; } catch (err) {}
+    if (!ok) { try { ok = document.execCommand("copy"); } catch (err) {} }
+    const label = btn.dataset.label || btn.textContent;
+    btn.dataset.label = label;
+    const mac = /Mac|iP(hone|ad)/.test(navigator.platform || "");
+    btn.textContent = ok ? "Copied \u2713" : (mac ? "Press \u2318C" : "Press Ctrl+C");
+    setTimeout(() => { btn.textContent = label; }, ok ? 1800 : 5000);
+  }
+
   /* ============================================================
      9. Reminder email: build the list, you paste and send.
         No API key, no server, nothing to keep running.
@@ -1244,27 +1222,25 @@
         '" aria-label="Opening time at ' + esc(l) + '"> to ' +
         '<span class="fixed">' + esc(pickupFor(l).time || "—") + "</span></label>").join("");
 
+    const nums = [...new Set(list.map(e => E164(e.phone)).filter(Boolean))];
+    $("nCount").textContent = nums.length;
+
     const sms = state.who === "sms";
+    $("toLabel").textContent = sms ? "Cadet phone numbers" : "Addresses";
     $("mailHint").innerHTML = sms
-      ? "Used by the phone links on the checklist. Edit it here — nothing sends automatically; "
-        + "your Messages app opens with the text ready for you to review."
+      ? "Cadet numbers for this date, ready to paste wherever you are sending from. "
+        + "Tapping a number on the checklist also opens a blank message to that cadet."
       : "Two separate sends, each with its own wording. Paste the addresses into "
         + "<strong>Bcc</strong> so nobody sees anyone else's. Texting stays cadet-only.";
-    $("optinWrap").style.display = sms ? "none" : "";
-    $("smsPane").hidden = !sms;
-    [...$("mailer").querySelectorAll(".mailgrid")].forEach(g => { if (g.id !== "smsPane") g.hidden = sms; });
     $("markEmailed").hidden = sms;
+    ["mailSubRow", "mailSubRowB", "mailBodyRow", "mailBodyRowB"].forEach(id => { $(id).hidden = sms; });
+
     if (sms) {
-      $("smsTpl").value = smsTemplate;
-      const sample = list.find(e => e.phone) || list[0];
-      const txt = sample ? smsText(sample) : smsTemplate;
-      $("smsPrev").textContent = txt;
-      const segs = txt.length <= 160 ? 1 : Math.ceil(txt.length / 153);
-      $("smsMeta").textContent = "— " + txt.length + " characters, " + segs + " message" +
-        (segs === 1 ? "" : "s") + (sample ? " · shown for " + sample.name : "");
-      $("mailWarn").textContent = segs > 2
-        ? "Long messages are split into " + segs + " parts by the carrier — worth trimming." : "";
-      $("toCount").textContent = "";
+      $("mailTo").value = nums.join(", ");
+      $("toCount").textContent = "— " + nums.length + " cadet number" + (nums.length === 1 ? "" : "s");
+      const noPhone = list.filter(e => !E164(e.phone)).length;
+      $("mailWarn").textContent = noPhone
+        ? noPhone + " cadet" + (noPhone === 1 ? " has" : "s have") + " no usable phone number" : "";
       return;
     }
 
@@ -1298,6 +1274,26 @@
     if (open) { fillMailer(); $("mailTo").scrollIntoView({ block: "nearest" }); }
   });
   $("mailClose").addEventListener("click", () => { $("mailer").hidden = true; });
+
+  /* One click, straight to the clipboard — no panel to dig through. */
+  $("copyNums").addEventListener("click", async () => {
+    const nums = [...new Set(buildList().map(e => E164(e.phone)).filter(Boolean))];
+    const btn = $("copyNums");
+    if (!nums.length) { flash("No phone numbers on this date.", true); return; }
+    let ok = false;
+    try { await navigator.clipboard.writeText(nums.join(", ")); ok = true; } catch (err) {}
+    if (ok) {
+      btn.textContent = "Copied " + nums.length + " \u2713";
+      setTimeout(() => { btn.textContent = "Copy numbers"; }, 2000);
+      return;
+    }
+    // Clipboard refused (some embedded previews do) — show them, selected.
+    state.who = "sms";
+    $("mailer").hidden = false;
+    fillMailer();
+    copyField($("mailTo"), btn);
+    $("mailTo").scrollIntoView({ block: "center" });
+  });
   $("optinOnly").addEventListener("change", fillMailer);
   $("mailer").addEventListener("click", e => {
     const b = e.target.closest("[data-who]");
@@ -1306,18 +1302,16 @@
     fillMailer();
   });
 
-  $("mailer").addEventListener("click", async e => {
+  /* Clipboard writes are blocked in some embedded previews, so this
+     always ends with the whole field selected — if the write fails you
+     can still just press Ctrl/Cmd+C. */
+  $("mailer").addEventListener("click", e => {
     const b = e.target.closest("[data-copy]");
-    if (!b) return;
-    const el = $(b.dataset.copy);
-    let ok = false;
-    try { await navigator.clipboard.writeText(el.value); ok = true; }
-    catch (err) {
-      el.focus(); el.select();
-      try { ok = document.execCommand("copy"); } catch (err2) { ok = false; }
-    }
-    b.textContent = ok ? "Copied" : "Select all + copy";
-    setTimeout(() => { b.textContent = "Copy"; }, 1800);
+    if (b) copyField($(b.dataset.copy), b);
+  });
+  // clicking the field itself selects everything, so Ctrl+C just works
+  ["mailTo", "mailSub", "mailBody"].forEach(id => {
+    $(id).addEventListener("focus", ev => { if (id === "mailTo") ev.target.select(); });
   });
 
   $("windows").addEventListener("change", e => {
@@ -1331,22 +1325,6 @@
       delete openOverrides[i.dataset.open];   // unreadable input falls back to the default
     }
     saveOpen(); fillMailer(); renderRows(buildList());
-  });
-
-  $("smsTpl").addEventListener("input", e => {
-    smsTemplate = e.target.value; saveTemplate();
-    const list = mailerList();
-    const sample = list.find(x => x.phone) || list[0];
-    const txt = sample ? smsText(sample) : smsTemplate;
-    $("smsPrev").textContent = txt;
-    const segs = txt.length <= 160 ? 1 : Math.ceil(txt.length / 153);
-    $("smsMeta").textContent = "— " + txt.length + " characters, " + segs + " message" + (segs === 1 ? "" : "s");
-    $("mailWarn").textContent = segs > 2
-      ? "Long messages are split into " + segs + " parts by the carrier — worth trimming." : "";
-    renderRows(buildList());   // the phone links carry the new wording
-  });
-  $("smsReset").addEventListener("click", () => {
-    smsTemplate = SMS_DEFAULT; saveTemplate(); fillMailer(); renderRows(buildList());
   });
 
   $("markEmailed").addEventListener("click", () => {

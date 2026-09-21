@@ -27,10 +27,26 @@ Two contact tools, both zero-infrastructure — no API key, no server, nothing t
 
 **Email this list…** builds the reminder for the selected date as **two separate sends**, because a Bcc blast carries one message and cadets and purchasers need different wording:
 
-- **Cadets** — "Your care package is ready to collect tonight", written to the person who has to walk over and get it.
-- **Parents** — "The care package you ordered is ready for your cadet to collect", noting that the cadet has been emailed directly too.
+- **Cadets** — "A reminder that your Chick-fil-A care package is ready to collect today", written to the person who has to walk over and get it.
+- **Parents** — "A reminder that the care package you ordered is ready for your cadet to collect", noting that the cadet has been sent the same reminder directly.
 
 Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready.
+
+### Pickup window
+
+The forms only ever state a deadline ("must be picked up ... by 7:10 PM"), which is fine for a message sent at the door but not for one sent over breakfast — a cadet would reasonably turn up at lunchtime. So the messages carry the whole window: **Prep School 6:10–7:10 PM, Arnold Hall 6:30–7:30 PM**.
+
+The opening time defaults to one hour before the cut-off, which matches both locations today, but that is an assumption rather than something the export states. It is therefore shown as an editable field per location in the reminder panel and saved in your browser, so a changed window is a two-second correction rather than a code change. Clearing the field restores the derived default.
+
+Both messages are written as reminders and phrase the timing relative to the day you actually send: the same button produces "ready to collect **today**" on the morning of, "**tomorrow**" the day before, "**this Thursday**" earlier in the week, and the full date beyond that. Subject lines follow (`Your care package is ready today` / `Your care package — Thursday, September 24`). Nothing needs editing when the send time moves. Neither message can name an individual, since both go to the whole list at once.
+
+A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters. The day, building and cut-off time are read out of each form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its correct details automatically.
+
+The panel also warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
+
+**Phone numbers** — a third chip in the reminder panel lists every cadet number for the selected date in E.164 form (`+17197539565`), comma-separated and ready to paste into whatever you are sending from. Numbers are deduplicated, so a household that has two cadets on one handset appears once. Tapping a number on the checklist itself opens a blank message to that cadet on your phone; you write the wording.
+
+Texting is **cadet-only** — parents are emailed, not messaged.
 
 ### Pickup window
 
@@ -48,19 +64,7 @@ The panel also warns about: addresses with a mistyped domain that will bounce (c
 
 The text wording is an editable template under the **Text message** tab, saved in your browser:
 
-| Token | Becomes |
-|---|---|
-| `{first}` | the cadet's first name |
-| `{day}` | `today`, `tomorrow`, `this Thursday`, or `on Thursday, September 24` — worked out from the delivery date against the day you send |
-| `{window}` | `6:30–7:30 PM`, the full pickup window for that cadet's location |
-| `{from}` | just the opening time |
-| `{place}` | the pickup point for their location |
-| `{time}` | that location's cut-off |
-| `{packages}` | ` You have 3 packages.` — and nothing at all when they only have one |
-| `{qty}` | the bare number |
-| `{name}` | the full name as entered |
 
-A live preview shows the message as a real cadet on the current list would receive it, with a character and segment count. Editing the template updates every phone link immediately.
 
 ### Why there is no bulk-send button
 
