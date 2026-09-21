@@ -259,6 +259,14 @@
   #mailTo { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
   .mailfoot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
   .audience { margin-bottom: 10px; }
+  .windows { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 2px 0 10px; font-size: 13px; color: var(--muted); }
+  .windows label { display: inline-flex; align-items: center; gap: 6px; }
+  .windows input {
+    font: inherit; font-size: 13px; width: 86px; padding: 4px 7px; text-align: center;
+    border: 1px solid var(--line-strong); border-radius: 4px;
+    background: var(--surface); color: var(--ink);
+  }
+  .windows .fixed { color: var(--ink); font-weight: 500; }
   .audience .chip { padding: 6px 12px; font-size: 13.5px; }
   .smsprev {
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -438,6 +446,7 @@
         <button type="button" class="chip" data-who="parent" aria-pressed="false">Parents <span class="count" id="pCount">0</span></button>
         <button type="button" class="chip" data-who="sms" aria-pressed="false">Text message</button>
       </div>
+      <div class="windows" id="windows"></div>
       <p class="hint" id="mailHint"></p>
       <p class="hint warnline" id="mailWarn"></p>
       <div class="mailgrid">
@@ -453,7 +462,8 @@
         <div class="mailrow"><textarea id="smsTpl" rows="5"></textarea></div>
         <p class="hint" style="margin:6px 0 0">
           <code>{first}</code> first name · <code>{day}</code> today / tomorrow / this Thursday ·
-          <code>{place}</code> pickup point · <code>{time}</code> cut-off ·
+          <code>{place}</code> pickup point · <code>{window}</code> 6:30–7:30 PM ·
+          <code>{from}</code> opening time · <code>{time}</code> cut-off ·
           <code>{packages}</code> appears only when they have more than one · <code>{qty}</code> the number alone
         </p>
         <label>Preview <span class="n" id="smsMeta"></span></label>
@@ -770,6 +780,41 @@
   ]);
   const looksMistyped = a => BAD_DOMAINS.has(String(a).split("@")[1] || "");
 
+  /* Pickup opens an hour before the cut-off at both current locations
+     (Prep School 6:10–7:10, Arnold Hall 6:30–7:30). That is the default,
+     but it is an assumption, so it is editable per location and saved. */
+  const OPEN_STORE = "cfa-carepackages-open-v1";
+  let openOverrides = {};
+  try { openOverrides = JSON.parse(localStorage.getItem(OPEN_STORE) || "{}") || {}; } catch (err) {}
+  function saveOpen() { try { localStorage.setItem(OPEN_STORE, JSON.stringify(openOverrides)); } catch (err) {} }
+
+  function parseTime(t) {
+    const m = String(t).match(/^\s*(\d{1,2}):(\d{2})\s*([AP])M?\s*$/i);
+    if (!m) return null;
+    let h = +m[1] % 12;
+    if (m[3].toUpperCase() === "P") h += 12;
+    return h * 60 + (+m[2]);
+  }
+  function fmtTime(mins) {
+    if (mins === null || mins === undefined) return "";
+    const v = ((mins % 1440) + 1440) % 1440;
+    const h = Math.floor(v / 60), m = v % 60;
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + String(m).padStart(2, "0") + " " + (h < 12 ? "AM" : "PM");
+  }
+  function openTime(location) {
+    if (openOverrides[location]) return openOverrides[location];
+    const cut = parseTime(pickupFor(location).time);
+    return cut === null ? "" : fmtTime(cut - 60);
+  }
+  function windowFor(location) {
+    const o = openTime(location), c = pickupFor(location).time;
+    if (!o || !c) return c || "";
+    // "6:30 – 7:30 PM" when both sit in the same half of the day.
+    const a = o.slice(-2), b = c.slice(-2);
+    return a === b ? o.replace(/\s*[AP]M$/, "") + "\u2013" + c : o + "\u2013" + c;
+  }
+
   function pickupFor(location) {
     const f = state.files.find(x => x.location === location);
     return (f && f.pickup) || { place: "", time: "" };
@@ -807,7 +852,7 @@
   /* The text is a template you can edit in the reminder panel, so the
      wording can change without touching the code. */
   const SMS_DEFAULT = "Hi {first}, this is Chick-fil-A. Reminder: your care package can be picked up " +
-    "{day} at {place}.{packages} Please collect it by {time} \u2014 unclaimed orders are given away. " +
+    "{day}, {window}, at {place}.{packages} Unclaimed orders are given away after {time}. " +
     "Can't make it? You can send someone in your place.";
   const SMS_STORE = "cfa-carepackages-sms-v1";
   let smsTemplate = SMS_DEFAULT;
@@ -818,6 +863,8 @@
     const p = pickupFor(e.location);
     return smsTemplate
       .replace(/\{day\}/g, whenPhrase())
+      .replace(/\{window\}/g, windowFor(e.location))
+      .replace(/\{from\}/g, openTime(e.location))
       .replace(/\{first\}/g, firstOf(e.name))
       .replace(/\{name\}/g, e.name)
       .replace(/\{place\}/g, p.place || "the pickup point")
@@ -851,8 +898,9 @@
     const places = [...new Set(list.map(e => e.location))].map(pickupFor);
     const p = places[0] || { place: "", time: "" };
     const same = places.every(x => x.place === p.place && x.time === p.time);
+    const w = same ? windowFor(list[0] && list[0].location) : "";
     const when = "When:  " + (dayName() ? dayName() + ", " : "") + dateLabel()
-      + (same && p.time ? ", by " + p.time : "") + "\n"
+      + (w ? ", " + w : "") + "\n"
       + (same && p.place ? "Where: " + p.place + "\n" : "");
     const by = same && p.time ? " by " + p.time : " by the cut-off";
 
@@ -1188,6 +1236,14 @@
     [...$("mailer").querySelectorAll("[data-who]")].forEach(b =>
       b.setAttribute("aria-pressed", String(b.dataset.who === state.who)));
 
+    // pickup window, one row per loaded location
+    $("windows").innerHTML = locations()
+      .filter(l => state.loc === "ALL" || l === state.loc)
+      .map(l => '<label>Pickup at ' + esc(l.replace(/\s*care package\s*$/i, "")) + ': ' +
+        '<input type="text" data-open="' + esc(l) + '" value="' + esc(openTime(l)) +
+        '" aria-label="Opening time at ' + esc(l) + '"> to ' +
+        '<span class="fixed">' + esc(pickupFor(l).time || "—") + "</span></label>").join("");
+
     const sms = state.who === "sms";
     $("mailHint").innerHTML = sms
       ? "Used by the phone links on the checklist. Edit it here — nothing sends automatically; "
@@ -1262,6 +1318,19 @@
     }
     b.textContent = ok ? "Copied" : "Select all + copy";
     setTimeout(() => { b.textContent = "Copy"; }, 1800);
+  });
+
+  $("windows").addEventListener("change", e => {
+    const i = e.target.closest("[data-open]");
+    if (!i) return;
+    const v = i.value.trim();
+    const cut = parseTime(pickupFor(i.dataset.open).time);
+    if (parseTime(v)) {
+      openOverrides[i.dataset.open] = fmtTime(parseTime(v));
+    } else {
+      delete openOverrides[i.dataset.open];   // unreadable input falls back to the default
+    }
+    saveOpen(); fillMailer(); renderRows(buildList());
   });
 
   $("smsTpl").addEventListener("input", e => {
