@@ -189,11 +189,13 @@
   /* ---- table ---- */
   .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .toolbar .right { display: flex; gap: 8px; flex-wrap: wrap; }
-  input[type="search"] {
+  input[type="search"], select#sort {
     font: inherit; padding: 8px 12px; border-radius: var(--radius);
     border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
     min-width: 190px;
   }
+  select#sort { min-width: 0; cursor: pointer; }
+  select#sort:hover { border-color: var(--accent); }
   .tablewrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
   thead th {
@@ -321,6 +323,11 @@
     <div class="toolbar noprint">
       <h2 style="margin:0">Checklist</h2>
       <div class="right">
+        <select id="sort" aria-label="Sort the checklist by">
+          <option value="last">Sort: last name</option>
+          <option value="first">Sort: first name</option>
+          <option value="qty">Sort: most packages</option>
+        </select>
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
         <button type="button" id="resetBtn">Clear checks</button>
         <button type="button" class="primary" id="printBtn">Print / save PDF</button>
@@ -542,7 +549,7 @@
   /* ============================================================
      5. State
      ============================================================ */
-  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sample: false };
+  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", sample: false };
   const checked = new Set();
   const $ = id => document.getElementById(id);
 
@@ -610,10 +617,42 @@
       o.flags.forEach(f => { if (!/no delivery date/i.test(f)) e.flags.add(f); });
       if (!e.phone && o.phone) e.phone = o.phone;
     }
-    const lastName = n => { const p = String(n).trim().split(/\s+/); return (p[p.length - 1] || "").toLowerCase(); };
-    return [...byCadet.values()].sort((a, b) =>
-      lastName(a.name).localeCompare(lastName(b.name)) || a.name.localeCompare(b.name));
+    const list = [...byCadet.values()];
+    const byLast = (a, b) =>
+      lastName(a.name).localeCompare(lastName(b.name)) ||
+      firstName(a.name).localeCompare(firstName(b.name));
+    if (state.sort === "first") {
+      list.sort((a, b) =>
+        firstName(a.name).localeCompare(firstName(b.name)) ||
+        lastName(a.name).localeCompare(lastName(b.name)));
+    } else if (state.sort === "qty") {
+      list.sort((a, b) => b.qty - a.qty || byLast(a, b));
+    } else {
+      list.sort(byLast);
+    }
+    return list;
   }
+
+  /* Name splitting that survives the things a free-text name field
+     actually contains: suffixes (Jr., III), "Last, First" entries,
+     and multi-word or hyphenated surnames. */
+  const SUFFIX = /^(jr|sr|ii|iii|iv|v|2nd|3rd|4th)\.?$/i;
+  const PARTICLE = /^(van|von|de|del|della|der|den|di|da|dos|du|la|le|st|st\.|mac|mc|bin|al)$/i;
+
+  function nameParts(n) {
+    const s = String(n || "").trim();
+    if (s.indexOf(",") > -1) {                     // "Groncki, Mikaela"
+      const bits = s.split(",");
+      return { last: bits[0].trim(), first: (bits[1] || "").trim() };
+    }
+    const p = s.split(/\s+/).filter(t => t && !SUFFIX.test(t));
+    if (p.length < 2) return { last: p[0] || "", first: "" };
+    let i = p.length - 1;                           // pull in "van der", "de la", …
+    while (i > 1 && PARTICLE.test(p[i - 1])) i--;
+    return { last: p.slice(i).join(" "), first: p.slice(0, i).join(" ") };
+  }
+  const lastName = n => nameParts(n).last.toLowerCase();
+  const firstName = n => nameParts(n).first.toLowerCase();
 
   /* ============================================================
      7. Render
@@ -767,6 +806,7 @@
     state.loc = b.dataset.loc; render();
   });
   $("search").addEventListener("input", () => renderRows(buildList()));
+  $("sort").addEventListener("change", e => { state.sort = e.target.value; renderRows(buildList()); });
   $("tbody").addEventListener("change", e => {
     const cb = e.target.closest("input[type=checkbox]");
     if (!cb) return;
