@@ -230,6 +230,33 @@
   .tag.flag { background: var(--warn-soft); color: var(--warn); }
   .initials { display: none; }
 
+  /* ---- contact / mailer ---- */
+  .ph a.txt { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  .ph a.txt:hover { border-bottom-style: solid; }
+  th.sent, td.sent { width: 62px; text-align: center; }
+  thead th.sent { font-size: 11px; letter-spacing: .08em; }
+  td.sent input { width: 15px; height: 15px; accent-color: var(--good); cursor: pointer; }
+  .progress { color: var(--muted); font-size: 13px; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
+  #mailer {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--surface-2); padding: 16px; margin-bottom: 16px;
+  }
+  .mailhead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .mailhead label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .mailhead button { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; padding: 0 4px; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .mailgrid { display: flex; flex-direction: column; gap: 4px; }
+  .mailgrid label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+  .mailgrid .n { text-transform: none; letter-spacing: 0; }
+  .mailrow { display: flex; gap: 8px; align-items: flex-start; }
+  .mailrow textarea {
+    flex: 1 1 auto; font: inherit; font-size: 13.5px; padding: 9px 11px; resize: vertical;
+    border: 1px solid var(--line-strong); border-radius: var(--radius);
+    background: var(--surface); color: var(--ink);
+  }
+  #mailTo { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .mailfoot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+
   .notice {
     border-left: 3px solid var(--warn); background: var(--warn-soft);
     color: var(--warn); padding: 12px 14px; border-radius: 0 var(--radius) var(--radius) 0;
@@ -294,6 +321,8 @@
     .tag .detail { display: none; }  /* keep the print note short enough to fit */
     .lead { display: none; }
 
+    th.sent, td.sent, #mailer, .progress { display: none !important; }
+    .ph a.txt { color: #000; text-decoration: none; border: 0; }
     .cb input { display: none; }
     .cb::before {
       content: ""; display: block; width: 11.5pt; height: 11.5pt;
@@ -381,20 +410,46 @@
           <option value="qty">Sort: most packages</option>
         </select>
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
-        <button type="button" id="resetBtn">Clear checks</button>
+        <button type="button" id="emailBtn">Email this list…</button>
+        <button type="button" id="resetBtn">Clear marks</button>
         <button type="button" class="primary" id="printBtn">Print / save PDF</button>
       </div>
     </div>
+    <div id="mailer" class="noprint" hidden>
+      <div class="mailhead">
+        <strong>Send the pickup reminder</strong>
+        <label id="optinWrap" hidden><input type="checkbox" id="optinOnly"> Only cadets who ticked the reminder box (<span id="optinCount">0</span>)</label>
+        <button type="button" id="mailClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="hint">Paste the addresses into the <strong>Bcc</strong> field so nobody sees anyone else's email.</p>
+      <div class="mailgrid">
+        <label for="mailTo">Addresses <span id="toCount" class="n"></span></label>
+        <div class="mailrow"><textarea id="mailTo" rows="3" readonly></textarea><button type="button" data-copy="mailTo">Copy</button></div>
+        <label for="mailSub">Subject</label>
+        <div class="mailrow"><textarea id="mailSub" rows="1"></textarea><button type="button" data-copy="mailSub">Copy</button></div>
+        <label for="mailBody">Message</label>
+        <div class="mailrow"><textarea id="mailBody" rows="9"></textarea><button type="button" data-copy="mailBody">Copy</button></div>
+      </div>
+      <div class="mailfoot">
+        <button type="button" class="primary" id="markEmailed">Mark these cadets emailed</button>
+        <span class="hint" id="mailMsg"></span>
+      </div>
+    </div>
+
+    <p class="progress noprint" id="progress"></p>
+
     <div class="tablewrap">
       <table id="table">
         <thead>
           <tr>
-            <th class="cb"></th>
+            <th class="cb" title="Picked up"></th>
             <th class="alpha"></th>
             <th class="nm">Cadet</th>
             <th class="qty">Pkgs</th>
             <th class="notes"></th>
             <th class="ph">Phone</th>
+            <th class="sent">Emailed</th>
+            <th class="sent">Texted</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -405,6 +460,8 @@
 
   <p class="foot noprint" id="foot" hidden>
     Everything is read in your browser — no file ever leaves this page.
+    Picked-up, emailed and texted marks are saved <strong>in this browser on this device</strong>,
+    so they survive a reload but do not follow you to another computer or phone.
   </p>
 </div>
 
@@ -473,6 +530,15 @@
       }
       if (bestScore > 0) col.delivery = best;
     }
+    // The reminder opt-in exports with no header at all ("No Label"),
+    // so it has to be found by what is in the cells.
+    col.consent = null;
+    for (let c = 0; c < headers.length; c++) {
+      let hits = 0, distinct = new Set();
+      for (const r of rows) { const v = (r[c] || "").trim(); distinct.add(v); if (/remind/i.test(v)) hits++; }
+      if (hits > 0 && distinct.size <= 3) { col.consent = c; break; }
+    }
+
     // Fallback: a "name" column that isn't the purchaser's.
     if (col.cadetName === null) {
       col.cadetName = find(h => h.includes("name") && !h.includes("purchasing") && !h.includes("first") && !h.includes("last"));
@@ -557,6 +623,16 @@
     if (col.cadetName === null) return { error: "No cadet-name column found in " + name + "." };
 
     const location = titleFromFilename(name);
+
+    /* The terms checkbox header spells out the real pickup point, e.g.
+       "...picked up at Arnold Hall by 7:30 PM." Reading it means the
+       reminder message always names the right building and time. */
+    let pickup = { place: "", time: "" };
+    for (const h of headers) {
+      const m = String(h).match(/picked up at\s+(.+?)\s*,?\s*by\s+(\d{1,2}:\d{2}\s*[AP]\.?M\.?)/i);
+      if (m) { pickup = { place: m[1].replace(/\s+/g, " ").trim(), time: m[2].toUpperCase().replace(/\./g, "") }; break; }
+    }
+
     const orders = [], problems = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
@@ -576,6 +652,7 @@
         buyerName: cell(col.buyerName),
         buyerPhone: cell(col.buyerPhone),
         submitted: submitted,
+        consent: col.consent !== null && /remind/i.test(cell(col.consent)),
         dates: dates,
         flags: []
       };
@@ -598,14 +675,29 @@
       if (order.flags.length) problems.push(order);
       orders.push(order);
     }
-    return { location: location, orders: orders, problems: problems, rowCount: rows.length - 1 };
+    return { location: location, pickup: pickup, orders: orders, problems: problems, rowCount: rows.length - 1 };
   }
 
   /* ============================================================
      5. State
      ============================================================ */
   const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", sample: false };
-  const checked = new Set();
+
+  /* Progress per cadet per date: p = picked up, e = emailed, t = texted.
+     Emails go out days before the pickup, so this has to outlive a reload.
+     It is stored in THIS browser only — see the note under the table. */
+  const STORE = "cfa-carepackages-marks-v1";
+  let marks = {};
+  try { marks = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (err) { marks = {}; }
+  function saveMarks() { try { localStorage.setItem(STORE, JSON.stringify(marks)); } catch (err) {} }
+  function bucket() { return (marks[state.date] = marks[state.date] || {}); }
+  function markOf(key) { return (marks[state.date] || {})[key] || {}; }
+  function setMark(key, field, on) {
+    const b = bucket(), m = (b[key] = b[key] || {});
+    if (on) m[field] = 1; else delete m[field];
+    if (!Object.keys(m).length) delete b[key];
+    saveMarks();
+  }
   const $ = id => document.getElementById(id);
 
   function esc(s) {
@@ -619,7 +711,7 @@
       flash("“" + name + "” is already loaded — skipped so nothing gets double-counted.", true);
       return;
     }
-    state.files.push({ name: name, location: res.location, rowCount: res.rowCount });
+    state.files.push({ name: name, location: res.location, pickup: res.pickup, rowCount: res.rowCount });
     state.orders = state.orders.concat(res.orders);
     state.problems = state.problems.concat(res.problems);
     render();
@@ -631,6 +723,52 @@
     el.innerHTML = '<div class="notice' + (warn ? "" : " ok") + '" style="margin-top:14px">' + esc(msg) + "</div>";
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => { el.innerHTML = ""; }, 7000);
+  }
+
+  function pickupFor(location) {
+    const f = state.files.find(x => x.location === location);
+    return (f && f.pickup) || { place: "", time: "" };
+  }
+  function dateLabel() {
+    const t = dateTotals().find(x => x.key === state.date);
+    return t ? t.label : state.date;
+  }
+  function dayName() {
+    const p = String(state.date || "").split("-");
+    if (p.length !== 3) return "";
+    const d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return isNaN(d) ? "" : ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
+  }
+  const firstOf = n => nameParts(n).first.split(/\s+/)[0] || nameParts(n).last || "there";
+
+  function smsText(e) {
+    const p = pickupFor(e.location);
+    return "Hi " + firstOf(e.name) + " \u2014 your Chick-fil-A care package is ready for pickup"
+      + (p.place ? " at " + p.place : "") + "."
+      + (p.time ? " Please collect it by " + p.time + " tonight." : "")
+      + (e.qty > 1 ? " You have " + e.qty + " packages." : "");
+  }
+  function smsHref(e) {
+    const d = digits(e.phone);
+    const t = d.length === 11 && d[0] === "1" ? d.slice(1) : d;
+    if (t.length !== 10) return "";
+    // "?&body=" is the spelling both iOS and Android accept.
+    return "sms:+1" + t + "?&body=" + encodeURIComponent(smsText(e));
+  }
+  function emailSubject() {
+    return "Care package pickup \u2014 " + (dayName() ? dayName() + ", " : "") + dateLabel().replace(/, \d{4}$/, "");
+  }
+  function emailBody(list) {
+    const places = [...new Set(list.map(e => e.location))].map(pickupFor);
+    const p = places[0] || { place: "", time: "" };
+    const same = places.every(x => x.place === p.place && x.time === p.time);
+    return "Your Chick-fil-A care package is ready for pickup.\n\n"
+      + "When:  " + (dayName() ? dayName() + ", " : "") + dateLabel()
+      + (same && p.time ? ", by " + p.time : "") + "\n"
+      + (same && p.place ? "Where: " + p.place + "\n" : "")
+      + "\nOrders that are not collected by the cut-off are given away, and they cannot be "
+      + "refunded or moved to another date. If you cannot make it, you are welcome to send "
+      + "someone else in your place.\n\nThank you!\nChick-fil-A North Colorado Springs";
   }
 
   /* ============================================================
@@ -666,13 +804,15 @@
       if (!byCadet.has(key)) {
         byCadet.set(key, {
           key: key, name: o.name, phone: o.phone, email: o.email, location: o.location,
-          qty: 0, orders: 0, flags: new Set(), names: new Set()
+          consent: false, qty: 0, orders: 0, flags: new Set(), names: new Set()
         });
       }
       const e = byCadet.get(key);
       e.qty += qty;
       e.orders += 1;
       e.names.add(o.name);
+      if (o.consent) e.consent = true;
+      if (!e.email && o.email) e.email = o.email;
       o.flags.forEach(f => { if (!/no delivery date/i.test(f)) e.flags.add(f); });
       if (!e.phone && o.phone) e.phone = o.phone;
     }
@@ -771,6 +911,8 @@
 
     renderReview();
     renderRows(list);
+    updateProgress();
+    if (!$("mailer").hidden) fillMailer();
   }
 
   function renderFiles() {
@@ -822,15 +964,24 @@
       let rail = "";
       if (railOn) { const c = initial(e); if (c && c !== prev) { rail = c; prev = c; } }
 
-      const on = checked.has(e.key);
+      const m = markOf(e.key), on = !!m.p;
+      const href = smsHref(e);
+      const phone = esc(fmtPhone(e.phone));
+      const box = (f, label) => '<td class="sent"><input type="checkbox" data-key="' + esc(e.key) +
+        '" data-mark="' + f + '"' + (m[f] ? " checked" : "") +
+        ' aria-label="' + label + " " + esc(e.name) + '"></td>';
+
       return "<tr" + (on ? ' class="done"' : "") + ">" +
-        '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '"' + (on ? " checked" : "") +
-        ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
+        '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '" data-mark="p"' +
+        (on ? " checked" : "") + ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
         '<td class="alpha">' + rail + "</td>" +
         '<td class="nm">' + esc(displayName(e.name)) + "</td>" +
         '<td class="qty' + (e.qty > 1 ? " multi" : "") + '">' + e.qty + "</td>" +
         '<td class="notes">' + tags.join(" ") + "</td>" +
-        '<td class="ph">' + esc(fmtPhone(e.phone)) + "</td></tr>";
+        '<td class="ph">' + (href
+            ? '<a class="txt" href="' + href + '" title="Open a text to ' + esc(e.name) + '">' + phone + "</a>"
+            : phone) + "</td>" +
+        box("e", "Emailed") + box("t", "Texted") + "</tr>";
     }).join("");
     void anyNotes;
   }
@@ -878,7 +1029,7 @@
   $("dateChips").addEventListener("click", e => {
     const b = e.target.closest("[data-date]");
     if (!b) return;
-    state.date = b.dataset.date; checked.clear(); render();
+    state.date = b.dataset.date; render();
   });
   $("locChips").addEventListener("click", e => {
     const b = e.target.closest("[data-loc]");
@@ -890,11 +1041,85 @@
   $("tbody").addEventListener("change", e => {
     const cb = e.target.closest("input[type=checkbox]");
     if (!cb) return;
-    if (cb.checked) checked.add(cb.dataset.key); else checked.delete(cb.dataset.key);
-    cb.closest("tr").classList.toggle("done", cb.checked);
+    setMark(cb.dataset.key, cb.dataset.mark, cb.checked);
+    if (cb.dataset.mark === "p") cb.closest("tr").classList.toggle("done", cb.checked);
+    updateProgress();
   });
-  $("resetBtn").addEventListener("click", () => { checked.clear(); renderRows(buildList()); });
+  $("resetBtn").addEventListener("click", () => {
+    if (!confirm("Clear picked-up, emailed and texted marks for " + dateLabel() + "?")) return;
+    delete marks[state.date]; saveMarks(); render();
+  });
   $("printBtn").addEventListener("click", () => window.print());
+
+  /* ============================================================
+     9. Reminder email: build the list, you paste and send.
+        No API key, no server, nothing to keep running.
+     ============================================================ */
+  function mailerList() {
+    const list = buildList();
+    return $("optinOnly").checked ? list.filter(e => e.consent) : list;
+  }
+  function fillMailer() {
+    const all = buildList();
+    const opt = all.filter(e => e.consent).length;
+    $("optinWrap").hidden = opt === 0;
+    $("optinCount").textContent = opt;
+    if (opt === 0) $("optinOnly").checked = false;
+
+    const list = mailerList();
+    const addrs = [...new Set(list.map(e => (e.email || "").trim()).filter(Boolean))];
+    $("mailTo").value = addrs.join(", ");
+    $("toCount").textContent = "— " + addrs.length + " address" + (addrs.length === 1 ? "" : "es") +
+      (addrs.length < list.length ? " (" + (list.length - addrs.length) + " cadet(s) have none)" : "");
+    $("mailSub").value = emailSubject();
+    $("mailBody").value = emailBody(list);
+  }
+  $("emailBtn").addEventListener("click", () => {
+    const open = $("mailer").hidden;
+    $("mailer").hidden = !open;
+    if (open) { fillMailer(); $("mailTo").scrollIntoView({ block: "nearest" }); }
+  });
+  $("mailClose").addEventListener("click", () => { $("mailer").hidden = true; });
+  $("optinOnly").addEventListener("change", fillMailer);
+
+  $("mailer").addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    const el = $(b.dataset.copy);
+    let ok = false;
+    try { await navigator.clipboard.writeText(el.value); ok = true; }
+    catch (err) {
+      el.focus(); el.select();
+      try { ok = document.execCommand("copy"); } catch (err2) { ok = false; }
+    }
+    b.textContent = ok ? "Copied" : "Select all + copy";
+    setTimeout(() => { b.textContent = "Copy"; }, 1800);
+  });
+
+  $("markEmailed").addEventListener("click", () => {
+    const list = mailerList().filter(e => e.email);
+    list.forEach(e => setMark(e.key, "e", true));
+    $("mailMsg").textContent = list.length + " cadet" + (list.length === 1 ? "" : "s") + " marked emailed.";
+    setTimeout(() => { $("mailMsg").textContent = ""; }, 4000);
+    renderRows(buildList());
+    updateProgress();
+  });
+
+  function updateProgress() {
+    const list = buildList();
+    if (!list.length) { $("progress").textContent = ""; return; }
+    let p = 0, em = 0, tx = 0, pkgs = 0, got = 0;
+    list.forEach(e => {
+      const m = markOf(e.key);
+      pkgs += e.qty;
+      if (m.p) { p++; got += e.qty; }
+      if (m.e) em++;
+      if (m.t) tx++;
+    });
+    $("progress").textContent =
+      got + " of " + pkgs + " packages handed out · " + p + "/" + list.length + " cadets collected · " +
+      em + " emailed · " + tx + " texted";
+  }
 
   /* ---- sample data ---- */
   const SAMPLE = '"Submission Date","Cadet\'s Name","Cadet\'s Email","Cadets Phone Number",' +
@@ -912,7 +1137,7 @@
 
   $("sampleBtn").addEventListener("click", () => {
     state.files = []; state.orders = []; state.problems = []; state.loc = "ALL"; state.date = null;
-    checked.clear(); state.sample = true;
+    marks = {}; saveMarks(); state.sample = true;
     addFile("Sample Care Package Form.csv", SAMPLE);
     flash("Sample data loaded — these are made-up cadets. Remove the file above and drop in your own exports.");
   });

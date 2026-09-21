@@ -19,7 +19,21 @@ There is no build step and no dependencies to install. The only external request
   orders, so keying on phone welds two unrelated people into one row — and one of them then never appears on the list at all. Email was present on every row
   of both sample exports and produced no false merges. If a future export has a blank email, that row falls back to phone, then to name.
 - **Sort** by last name (the default), first name, or most packages. Sorting by last name also displays names as `Last, First`, the way a roster reads. The printout follows whatever order is on screen.
-- **Print / save PDF** produces a clean checklist: checkbox, name, phone, package count, and a "Picked up by" column for initials. Print it before the pickup — paper needs no signal.
+- **Print / save PDF** produces a clean checklist: checkbox, name, phone and package count, at a size you can read across a table. Print it before the pickup — paper needs no signal.
+
+## Reminders
+
+Two contact tools, both zero-infrastructure — no API key, no server, nothing to keep running or pay for.
+
+**Email this list…** builds the reminder for the selected date: every cadet address ready to paste into **Bcc**, plus a subject and message with the right day, building and cut-off time already filled in. The building and time are read out of the form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its own correct details automatically. If the export has the reminder opt-in field, a toggle narrows the list to cadets who ticked it. **Mark these cadets emailed** then records the send in one click.
+
+**Tap-to-text** — on the checklist each phone number is a link that opens your own phone's Messages app with that cadet's number and a short, personalised message prefilled. Nothing is sent automatically; you review and hit send. This is for chasing the handful who have not collected by the cut-off, one at a time, rather than bulk messaging.
+
+Bulk SMS through a platform (Quo, Twilio, and the rest) additionally requires US carrier registration (A2P 10DLC) and per-cadet consent, which is why email is the primary channel here.
+
+### Tracking
+
+Each cadet carries three marks for each delivery date — **picked up**, **emailed**, **texted** — with a running tally above the table. These are stored in the browser's local storage, keyed by date, so they survive a reload and a closed laptop. They live on one device in one browser: they do not sync to your phone or to a colleague, and clearing site data erases them. `Clear marks` resets all three for the selected date only.
 
 ## How the package count is worked out
 
