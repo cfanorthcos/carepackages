@@ -18,53 +18,36 @@ There is no build step and no dependencies to install. The only external request
   Identity is the **cadet's own email address**, not their phone. A parent buying for two different cadets frequently enters the same contact number on both
   orders, so keying on phone welds two unrelated people into one row — and one of them then never appears on the list at all. Email was present on every row
   of both sample exports and produced no false merges. If a future export has a blank email, that row falls back to phone, then to name.
+- Names are split into first and last for sorting and export. Suffixes (`Jr.`, `III`), surname particles (`van der`, `de la`), `Last, First` entries and USAFA class prefixes (`C4C Alex Grasso-Martins` → first name `Alex`) are all handled.
 - **Sort** by last name (the default), first name, or most packages. Sorting by last name also displays names as `Last, First`, the way a roster reads. The printout follows whatever order is on screen.
 - **Print / save PDF** produces a clean checklist: checkbox, name, phone and package count, at a size you can read across a table. Print it before the pickup — paper needs no signal.
 
 ## Reminders
 
-Two contact tools, both zero-infrastructure — no API key, no server, nothing to keep running or pay for.
+Three ways to get the list out, all zero-infrastructure — no API key, no server, nothing to keep running or pay for.
 
-**Email this list…** builds the reminder for the selected date as **two separate sends**, because a Bcc blast carries one message and cadets and purchasers need different wording:
+**Reminders…** builds the email for the selected date as **two separate sends**, because a Bcc blast carries one message and cadets and purchasers need different wording:
 
 - **Cadets** — "A reminder that your Chick-fil-A care package is ready to collect today", written to the person who has to walk over and get it.
 - **Parents** — "A reminder that the care package you ordered is ready for your cadet to collect", noting that the cadet has been sent the same reminder directly.
 
-Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready.
+Switch audiences with the Cadets / Parents chips; each has its own address list, subject and body, all copy-ready. Paste addresses into **Bcc**. A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters.
+
+Both messages phrase the timing relative to the day you actually send: the same button produces "ready to collect **today**" on the morning of, "**tomorrow**" the day before, "**this Thursday**" earlier in the week, and the full date beyond that. Subject lines follow. Nothing needs editing when the send time moves. Neither message names an individual, since both go to the whole list at once.
+
+The panel warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
+
+**Copy numbers** puts every cadet number for the selected date on the clipboard in one click, in E.164 form (`+17197539565`), comma-separated. Numbers are deduplicated, so a household with two cadets on one handset appears once. Also available as a chip inside the reminder panel.
+
+**Export CSV** downloads those cadets as `First Name, Last Name, Phone` for importing into a texting platform or a contacts list. Unlike the number copy this is **not** deduplicated — two cadets sharing a handset are two people and get two rows. The file carries a UTF-8 byte-order mark so Excel opens names like `Horne-Nuñez` correctly, and fields are quoted if a name ever contains a comma.
+
+Texting is **cadet-only** — parents are emailed, not messaged. Tapping a number on the checklist opens a blank message to that cadet on your phone; you write the wording.
 
 ### Pickup window
 
-The forms only ever state a deadline ("must be picked up ... by 7:10 PM"), which is fine for a message sent at the door but not for one sent over breakfast — a cadet would reasonably turn up at lunchtime. So the messages carry the whole window: **Prep School 6:10–7:10 PM, Arnold Hall 6:30–7:30 PM**.
+The forms only ever state a deadline ("must be picked up ... by 7:10 PM"), which is fine for a message sent at the door but not for one sent over breakfast — a cadet would reasonably turn up at lunchtime. So the messages carry the whole window: **Prep School 6:10–7:10 PM, Arnold Hall 6:30–7:30 PM**. The building and cut-off are read out of each form's own terms text, so each location gets its correct details automatically.
 
-The opening time defaults to one hour before the cut-off, which matches both locations today, but that is an assumption rather than something the export states. It is therefore shown as an editable field per location in the reminder panel and saved in your browser, so a changed window is a two-second correction rather than a code change. Clearing the field restores the derived default.
-
-Both messages are written as reminders and phrase the timing relative to the day you actually send: the same button produces "ready to collect **today**" on the morning of, "**tomorrow**" the day before, "**this Thursday**" earlier in the week, and the full date beyond that. Subject lines follow (`Your care package is ready today` / `Your care package — Thursday, September 24`). Nothing needs editing when the send time moves. Neither message can name an individual, since both go to the whole list at once.
-
-A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters. The day, building and cut-off time are read out of each form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its correct details automatically.
-
-The panel also warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
-
-**Phone numbers** — a third chip in the reminder panel lists every cadet number for the selected date in E.164 form (`+17197539565`), comma-separated and ready to paste into whatever you are sending from. Numbers are deduplicated, so a household that has two cadets on one handset appears once. Tapping a number on the checklist itself opens a blank message to that cadet on your phone; you write the wording.
-
-Texting is **cadet-only** — parents are emailed, not messaged.
-
-### Pickup window
-
-The forms only ever state a deadline ("must be picked up ... by 7:10 PM"), which is fine for a message sent at the door but not for one sent over breakfast — a cadet would reasonably turn up at lunchtime. So the messages carry the whole window: **Prep School 6:10–7:10 PM, Arnold Hall 6:30–7:30 PM**.
-
-The opening time defaults to one hour before the cut-off, which matches both locations today, but that is an assumption rather than something the export states. It is therefore shown as an editable field per location in the reminder panel and saved in your browser, so a changed window is a two-second correction rather than a code change. Clearing the field restores the derived default.
-
-Both messages are written as reminders and phrase the timing relative to the day you actually send: the same button produces "ready to collect **today**" on the morning of, "**tomorrow**" the day before, "**this Thursday**" earlier in the week, and the full date beyond that. Subject lines follow (`Your care package is ready today` / `Your care package — Thursday, September 24`). Nothing needs editing when the send time moves. Neither message can name an individual, since both go to the whole list at once.
-
-A purchaser who used their cadet's own address is counted in the cadet send only, so nobody receives both letters. The day, building and cut-off time are read out of each form's own terms text ("...picked up at Arnold Hall by 7:30 PM"), so each location gets its correct details automatically.
-
-The panel also warns about: addresses with a mistyped domain that will bounce (checked against an exact list of common misspellings — `gamil.com`, `yahoo.con` and the like, so real domains such as `frontier.com` are never flagged), orders naming a purchaser with no email, cadets who ordered for themselves and so have no purchaser, and lists large enough to hit your mail provider's per-message recipient cap.
-
-**Tap-to-text** — texting is **cadet-only**; parents are emailed, not messaged. Each cadet's phone number on the checklist is a link that opens your own phone's Messages app with the number and the message prefilled. Nothing sends automatically. This is for chasing the handful who have not collected by the cut-off, one at a time.
-
-The text wording is an editable template under the **Text message** tab, saved in your browser:
-
-
+The opening time defaults to one hour before the cut-off, which matches both locations today, but that is an assumption rather than something the export states. It is an editable field per location in the reminder panel, saved in your browser, so a changed window is a two-second correction rather than a code change. Clearing the field restores the derived default.
 
 ### Why there is no bulk-send button
 

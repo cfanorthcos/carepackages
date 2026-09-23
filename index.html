@@ -431,6 +431,7 @@
         </select>
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
         <button type="button" id="copyNums">Copy numbers</button>
+        <button type="button" id="exportCsv">Export CSV</button>
         <button type="button" id="emailBtn">Reminders…</button>
         <button type="button" id="resetBtn">Clear marks</button>
         <button type="button" class="primary" id="printBtn">Print / save PDF</button>
@@ -958,6 +959,8 @@
      actually contains: suffixes (Jr., III), "Last, First" entries,
      and multi-word or hyphenated surnames. */
   const SUFFIX = /^(jr|sr|ii|iii|iv|v|2nd|3rd|4th)\.?$/i;
+  // USAFA class rank typed in front of the name ("C4C Alex Grasso-Martins")
+  const RANK = /^(c[1-4]c|cdt|cadet)\.?$/i;
   const PARTICLE = /^(van|von|de|del|della|der|den|di|da|dos|du|la|le|st|st\.|mac|mc|bin|al)$/i;
 
   function nameParts(n) {
@@ -967,6 +970,7 @@
       return { last: bits[0].trim(), first: (bits[1] || "").trim() };
     }
     const p = s.split(/\s+/).filter(t => t && !SUFFIX.test(t));
+    while (p.length > 1 && RANK.test(p[0])) p.shift();
     if (p.length < 2) return { last: p[0] || "", first: "" };
     let i = p.length - 1;                           // pull in "van der", "de la", …
     while (i > 1 && PARTICLE.test(p[i - 1])) i--;
@@ -1225,9 +1229,13 @@
     const nums = [...new Set(list.map(e => E164(e.phone)).filter(Boolean))];
     $("nCount").textContent = nums.length;
 
-    const sms = state.who === "sms";
-    $("toLabel").textContent = sms ? "Cadet phone numbers" : "Addresses";
-    $("mailHint").innerHTML = sms
+    const csvView = state.who === "csv";
+    const sms = state.who === "sms" || csvView;
+    $("toLabel").textContent = csvView ? "Cadet CSV" : sms ? "Cadet phone numbers" : "Addresses";
+    $("mailHint").innerHTML = csvView
+      ? "This browser blocked the download, so here is the file's contents \u2014 paste it into a "
+        + "blank spreadsheet and save as CSV. Downloading works normally on the live site."
+      : sms
       ? "Cadet numbers for this date, ready to paste wherever you are sending from. "
         + "Tapping a number on the checklist also opens a blank message to that cadet."
       : "Two separate sends, each with its own wording. Paste the addresses into "
@@ -1235,6 +1243,12 @@
     $("markEmailed").hidden = sms;
     ["mailSubRow", "mailSubRowB", "mailBodyRow", "mailBodyRowB"].forEach(id => { $(id).hidden = sms; });
 
+    if (csvView) {
+      $("mailTo").value = buildCsv(list);
+      $("toCount").textContent = "\u2014 " + list.length + " cadet" + (list.length === 1 ? "" : "s");
+      $("mailWarn").textContent = "";
+      return;
+    }
     if (sms) {
       $("mailTo").value = nums.join(", ");
       $("toCount").textContent = "— " + nums.length + " cadet number" + (nums.length === 1 ? "" : "s");
@@ -1274,6 +1288,53 @@
     if (open) { fillMailer(); $("mailTo").scrollIntoView({ block: "nearest" }); }
   });
   $("mailClose").addEventListener("click", () => { $("mailer").hidden = true; });
+
+  /* ---- CSV of the cadets on this date: first, last, phone ---- */
+  function csvCell(v) {
+    const t = String(v == null ? "" : v);
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function buildCsv(list) {
+    const rows = [["First Name", "Last Name", "Phone"]];
+    list.forEach(e => {
+      const p = nameParts(e.name);
+      // one row per cadet — two cadets on a shared handset are still two people
+      rows.push([p.first, p.last, E164(e.phone) || fmtPhone(e.phone)]);
+    });
+    return rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+  }
+
+  $("exportCsv").addEventListener("click", () => {
+    const list = buildList();
+    if (!list.length) { flash("Nothing to export \u2014 no cadets on this date.", true); return; }
+    const locLabel = state.loc === "ALL" ? locations().join(" + ") : state.loc;
+    const slug = x => String(x).toLowerCase().replace(/\s*care\s*package\s*/gi, " ")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const name = "cadets-" + state.date + "-" + (slug(locLabel) || "all") + ".csv";
+    // \uFEFF so Excel opens it as UTF-8 and names like Tom\u00e1s survive
+    const csv = "\uFEFF" + buildCsv(list);
+    try {
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+    } catch (err) {}
+
+    // Embedded previews block downloads outright, so offer the text as well.
+    if (window.self !== window.top) {
+      state.who = "csv";
+      $("mailer").hidden = false;
+      fillMailer();
+      $("mailTo").value = csv.replace(/^\uFEFF/, "");
+      copyField($("mailTo"), $("exportCsv"));
+      $("mailTo").scrollIntoView({ block: "center" });
+    } else {
+      const b = $("exportCsv");
+      b.textContent = "Saved " + list.length + " \u2713";
+      setTimeout(() => { b.textContent = "Export CSV"; }, 2000);
+    }
+  });
 
   /* One click, straight to the clipboard — no panel to dig through. */
   $("copyNums").addEventListener("click", async () => {
