@@ -290,10 +290,11 @@
   .tag.manual button { border: 0; background: none; padding: 0 0 0 5px; font-size: 13px; line-height: 1; color: inherit; cursor: pointer; }
   /* ---- edit / remove a cadet ---- */
   .nm .rowedit {
-    margin-left: 8px; border: 0; background: none; padding: 0 2px; font: inherit; font-size: 12px;
-    font-weight: 400; color: var(--muted); cursor: pointer; text-decoration: underline dotted; opacity: .7;
+    margin-left: 10px; padding: 2px 9px; font: inherit; font-size: 12.5px; font-weight: 500;
+    color: var(--accent); background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 4px; cursor: pointer; vertical-align: 1px;
   }
-  tr:hover .nm .rowedit, .nm .rowedit:focus { opacity: 1; color: var(--accent); }
+  .nm .rowedit:hover, .nm .rowedit:focus { border-color: var(--accent); background: var(--accent-soft); }
   tbody tr.editrow td { background: var(--surface-2); padding: 12px 14px 14px; }
   tbody tr.editing td { background: var(--surface-2); border-bottom-color: transparent; }
   .editrow .addgrid { margin-top: 0; }
