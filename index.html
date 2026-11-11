@@ -268,6 +268,26 @@
   }
   .windows .fixed { color: var(--ink); font-weight: 500; }
   .audience .chip { padding: 6px 12px; font-size: 13.5px; }
+  /* ---- add a cadet by hand ---- */
+  #adder {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--surface-2); padding: 16px; margin-bottom: 16px;
+  }
+  .addgrid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin-top: 8px; }
+  .addgrid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); }
+  .addgrid input, .addgrid select {
+    font: inherit; font-size: 14px; padding: 7px 9px; text-transform: none; letter-spacing: 0;
+    border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--ink);
+  }
+  .addgrid .w-name input { width: 200px; }
+  .addgrid .w-email input { width: 220px; }
+  .addgrid .w-phone input { width: 150px; }
+  .addgrid .w-qty input { width: 64px; }
+  @media (max-width: 560px) { .addgrid label, .addgrid .w-name input, .addgrid .w-email input,
+    .addgrid .w-phone input { width: 100%; } }
+  .tag.manual { background: var(--good-soft, var(--accent-soft)); color: var(--good, var(--accent)); }
+  .tag.manual button { border: 0; background: none; padding: 0 0 0 5px; font-size: 13px; line-height: 1; color: inherit; cursor: pointer; }
   .smsprev {
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
     padding: 11px 13px; margin: 4px 0 12px; font-size: 14px; max-width: 46ch; line-height: 1.45;
@@ -341,7 +361,7 @@
     .tag .detail { display: none; }  /* keep the print note short enough to fit */
     .lead { display: none; }
 
-    th.sent, td.sent, #mailer, .progress { display: none !important; }
+    th.sent, td.sent, #mailer, .progress, .tag.manual button { display: none !important; }
     .ph a.txt { color: #000; text-decoration: none; border: 0; }
     .cb input { display: none; }
     .cb::before {
@@ -432,11 +452,31 @@
         <input type="search" id="search" placeholder="Find a cadet…" aria-label="Find a cadet">
         <button type="button" id="copyNums">Copy numbers</button>
         <button type="button" id="exportCsv">Export CSV</button>
+        <button type="button" id="addBtn">Add cadet…</button>
         <button type="button" id="emailBtn">Reminders…</button>
         <button type="button" id="resetBtn">Clear marks</button>
         <button type="button" class="primary" id="printBtn">Print / save PDF</button>
       </div>
     </div>
+    <form id="adder" class="noprint" hidden autocomplete="off">
+      <div class="mailhead">
+        <strong>Add a cadet by hand</strong>
+        <button type="button" id="addClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="hint" style="margin:0">For an order that isn't in the export — a walk-up, a phone order, a late form.
+        Saved in this browser, so it comes back when you reload and re-import. An email that matches an imported
+        cadet adds to that cadet's line instead of making a second one.</p>
+      <div class="addgrid">
+        <label class="w-name">Cadet name<input id="addName" required placeholder="First Last"></label>
+        <label class="w-email">Cadet email<input id="addEmail" type="email" placeholder="optional"></label>
+        <label class="w-phone">Phone<input id="addPhone" type="tel" placeholder="optional"></label>
+        <label class="w-qty">Pkgs<input id="addQty" type="number" min="1" max="99" value="1" required></label>
+        <label>Date<input id="addDate" type="date" required></label>
+        <label id="addLocWrap">Location<select id="addLoc"></select></label>
+        <button type="submit" class="primary">Add to list</button>
+      </div>
+      <p class="hint warnline" id="addMsg" style="margin:10px 0 0"></p>
+    </form>
     <div id="mailer" class="noprint" hidden>
       <div class="mailhead">
         <strong>Send the pickup reminder</strong>
@@ -731,6 +771,30 @@
   }
   const $ = id => document.getElementById(id);
 
+  /* Cadets added by hand after import. The CSVs are not kept between
+     visits, so these are stored on their own and joined back onto
+     whichever location they belong to once that file is loaded again. */
+  const MANUAL_STORE = "cfa-carepackages-manual-v1";
+  let manual = [];
+  try { manual = JSON.parse(localStorage.getItem(MANUAL_STORE) || "[]") || []; } catch (err) { manual = []; }
+  if (!Array.isArray(manual)) manual = [];
+  function saveManual() { try { localStorage.setItem(MANUAL_STORE, JSON.stringify(manual)); } catch (err) {} }
+  function keyLabel(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return MONTH_NAMES[m - 1] + " " + d + ", " + y;
+  }
+  /* Imported orders plus hand-added ones, the latter shaped like orders
+     so every count, merge, export and reminder treats them the same. */
+  function allOrders() {
+    const locs = new Set(state.orders.map(o => o.location));
+    return state.orders.concat(manual.filter(m => locs.has(m.location)).map(m => ({
+      row: "added by hand", location: m.location, name: m.name, email: m.email || "",
+      phone: m.phone || "", buyerName: "", buyerPhone: "", buyerEmail: "", submitted: "",
+      consent: false, manualId: m.id, flags: [],
+      dates: [{ key: m.date, label: keyLabel(m.date), qty: m.qty, amount: null, assumedQty: false, assumedYear: false }]
+    })));
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
@@ -892,7 +956,7 @@
      ============================================================ */
   function dateTotals() {
     const map = new Map();
-    for (const o of state.orders) {
+    for (const o of allOrders()) {
       for (const d of o.dates) {
         if (!map.has(d.key)) map.set(d.key, { key: d.key, label: d.label, qty: 0 });
         map.get(d.key).qty += d.qty;
@@ -907,7 +971,7 @@
 
   function buildList() {
     const byCadet = new Map();
-    for (const o of state.orders) {
+    for (const o of allOrders()) {
       if (state.loc !== "ALL" && o.location !== state.loc) continue;
       let qty = 0;
       for (const d of o.dates) if (d.key === state.date) qty += d.qty;
@@ -922,13 +986,15 @@
           key: key, name: o.name, phone: o.phone, email: o.email, location: o.location,
           consent: false, qty: 0, orders: 0, flags: new Set(), names: new Set(),
           /* The cadet gets the text; the cadet AND whoever bought it get the email. */
-          cadetEmails: new Set(), parentEmails: new Set(), buyerNoEmail: 0
+          cadetEmails: new Set(), parentEmails: new Set(), buyerNoEmail: 0,
+          manualIds: []
         });
       }
       const e = byCadet.get(key);
       e.qty += qty;
       e.orders += 1;
       e.names.add(o.name);
+      if (o.manualId) e.manualIds.push(o.manualId);
       if (o.consent) e.consent = true;
       if (!e.email && o.email) e.email = o.email;
       const addr = v => { const t = String(v || "").trim(); return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(t) ? t.toLowerCase() : ""; };
@@ -1082,6 +1148,12 @@
       const tags = [];
       if (state.loc === "ALL" && locations().length > 1) tags.push('<span class="tag loc">' + esc(e.location) + "</span>");
       if (e.orders > 1) tags.push('<span class="tag merged">' + e.orders + " orders merged</span>");
+      e.manualIds.forEach(id => {
+        const m = manual.find(x => x.id === id);
+        tags.push('<span class="tag manual">Added by hand' + (m && e.orders > 1 ? " +" + m.qty : "") +
+          '<button type="button" data-unadd="' + esc(id) + '" title="Remove this hand-added entry" aria-label="Remove hand-added entry for ' +
+          esc(e.name) + '">&times;</button></span>');
+      });
       if (e.names.size > 1) tags.push('<span class="tag flag">Name varies<span class="detail">: ' +
         esc([...e.names].join(" / ")) + "</span></span>");
       e.flags.forEach(f => tags.push('<span class="tag flag">' + esc(f) + "</span>"));
@@ -1171,6 +1243,57 @@
     if (cb.dataset.mark === "p") cb.closest("tr").classList.toggle("done", cb.checked);
     updateProgress();
   });
+  $("tbody").addEventListener("click", e => {
+    const b = e.target.closest("[data-unadd]");
+    if (!b) return;
+    const m = manual.find(x => x.id === b.dataset.unadd);
+    if (!m || !confirm("Remove " + m.name + " (" + m.qty + " pkg" + (m.qty === 1 ? "" : "s") + ", added by hand) from " + keyLabel(m.date) + "?")) return;
+    manual = manual.filter(x => x.id !== m.id);
+    saveManual(); render();
+  });
+
+  /* ---- add a cadet by hand ---- */
+  function openAdder() {
+    const locs = locations();
+    $("addLoc").innerHTML = locs.map(l => '<option value="' + esc(l) + '">' + esc(l) + "</option>").join("");
+    if (state.loc !== "ALL") $("addLoc").value = state.loc;
+    $("addLocWrap").hidden = locs.length < 2;
+    if (state.date) $("addDate").value = state.date;
+    $("addMsg").textContent = "";
+    $("adder").hidden = false;
+    $("addName").focus();
+  }
+  $("addBtn").addEventListener("click", () => { if ($("adder").hidden) openAdder(); else $("adder").hidden = true; });
+  $("addClose").addEventListener("click", () => { $("adder").hidden = true; });
+  $("adder").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const name = $("addName").value.trim().replace(/\s+/g, " ");
+    const email = $("addEmail").value.trim();
+    const phone = $("addPhone").value.trim();
+    const qty = parseInt($("addQty").value, 10);
+    const date = $("addDate").value;
+    const location = $("addLoc").value || locations()[0];
+    const say = t => { $("addMsg").classList.add("warnline"); $("addMsg").textContent = t; };
+    if (!name) return say("Enter the cadet's name.");
+    if (!(qty >= 1 && qty <= 99)) return say("Packages must be between 1 and 99.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return say("Pick a delivery date.");
+    if (email && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) return say("That email doesn't look complete.");
+    if (phone && digits(phone).length < 10) return say("That phone number looks too short.");
+    if (!location) return say("Load a CSV first so there is a location to add to.");
+    manual.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      location: location, date: date, name: name, email: email, phone: phone, qty: qty });
+    saveManual();
+    state.date = date;
+    if (state.loc !== "ALL" && state.loc !== location) state.loc = location;
+    $("search").value = "";
+    render();
+    ["addName", "addEmail", "addPhone"].forEach(id => { $(id).value = ""; });
+    $("addQty").value = 1;
+    $("addMsg").classList.remove("warnline");
+    $("addMsg").textContent = "Added " + name + " to " + keyLabel(date) + ". Add another, or close this panel.";
+    $("addName").focus();
+  });
+
   $("resetBtn").addEventListener("click", () => {
     if (!confirm("Clear picked-up, emailed and texted marks for " + dateLabel() + "?")) return;
     delete marks[state.date]; saveMarks(); render();
