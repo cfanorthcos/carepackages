@@ -288,6 +288,23 @@
     .addgrid .w-phone input { width: 100%; } }
   .tag.manual { background: var(--good-soft, var(--accent-soft)); color: var(--good, var(--accent)); }
   .tag.manual button { border: 0; background: none; padding: 0 0 0 5px; font-size: 13px; line-height: 1; color: inherit; cursor: pointer; }
+  /* ---- edit / remove a cadet ---- */
+  .nm .rowedit {
+    margin-left: 8px; border: 0; background: none; padding: 0 2px; font: inherit; font-size: 12px;
+    font-weight: 400; color: var(--muted); cursor: pointer; text-decoration: underline dotted; opacity: .7;
+  }
+  tr:hover .nm .rowedit, .nm .rowedit:focus { opacity: 1; color: var(--accent); }
+  tbody tr.editrow td { background: var(--surface-2); padding: 12px 14px 14px; }
+  tbody tr.editing td { background: var(--surface-2); border-bottom-color: transparent; }
+  .editrow .addgrid { margin-top: 0; }
+  .editrow .danger { color: var(--warn); border-color: var(--warn); }
+  .editrow .was { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .tag.edited { background: var(--surface-2); color: var(--muted); }
+  #removedWrap { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  #removedWrap button {
+    border: 0; background: none; padding: 0; font: inherit; color: var(--accent);
+    cursor: pointer; text-decoration: underline dotted;
+  }
   .smsprev {
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
     padding: 11px 13px; margin: 4px 0 12px; font-size: 14px; max-width: 46ch; line-height: 1.45;
@@ -361,7 +378,7 @@
     .tag .detail { display: none; }  /* keep the print note short enough to fit */
     .lead { display: none; }
 
-    th.sent, td.sent, #mailer, .progress, .tag.manual button { display: none !important; }
+    th.sent, td.sent, #mailer, .progress, .tag.manual button, .rowedit, .editrow, .tag.edited, #removedWrap { display: none !important; }
     .ph a.txt { color: #000; text-decoration: none; border: 0; }
     .cb input { display: none; }
     .cb::before {
@@ -525,6 +542,7 @@
       </table>
     </div>
     <div class="empty" id="emptyMsg" hidden>No cadets match that search.</div>
+    <p id="removedWrap" class="noprint" hidden></p>
   </section>
 
   <p class="foot noprint" id="foot" hidden>
@@ -752,7 +770,7 @@
   /* ============================================================
      5. State
      ============================================================ */
-  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", who: "cadet", sample: false };
+  const state = { files: [], orders: [], problems: [], date: null, loc: "ALL", sort: "last", who: "cadet", sample: false, editing: null };
 
   /* Progress per cadet per date: p = picked up, e = emailed, t = texted.
      Emails go out days before the pickup, so this has to outlive a reload.
@@ -783,6 +801,23 @@
     const [y, m, d] = key.split("-").map(Number);
     return MONTH_NAMES[m - 1] + " " + d + ", " + y;
   }
+  /* Corrections made on the list itself. The CSV is never rewritten, so
+     these sit on top of it, keyed the same way as the marks:
+       info[cadetKey]      = { name, email, phone }  — follows the cadet to every date
+       day[date][cadetKey] = { qty, removed }         — just that pickup
+     The key is worked out from the imported row, so editing an email
+     doesn't orphan the cadet's marks or the edit itself. */
+  const EDIT_STORE = "cfa-carepackages-edits-v1";
+  let edits = {};
+  try { edits = JSON.parse(localStorage.getItem(EDIT_STORE) || "{}") || {}; } catch (err) { edits = {}; }
+  if (typeof edits !== "object" || Array.isArray(edits)) edits = {};
+  edits.info = edits.info || {};
+  edits.day = edits.day || {};
+  function saveEdits() {
+    for (const d of Object.keys(edits.day)) if (!Object.keys(edits.day[d]).length) delete edits.day[d];
+    try { localStorage.setItem(EDIT_STORE, JSON.stringify(edits)); } catch (err) {}
+  }
+
   /* Imported orders plus hand-added ones, the latter shaped like orders
      so every count, merge, export and reminder treats them the same. */
   function allOrders() {
@@ -959,8 +994,12 @@
     for (const o of allOrders()) {
       for (const d of o.dates) {
         if (!map.has(d.key)) map.set(d.key, { key: d.key, label: d.label, qty: 0 });
-        map.get(d.key).qty += d.qty;
       }
+    }
+    /* Count through the same grouping the list uses, so an edited or
+       removed cadet changes the number on the date chip too. */
+    for (const t of map.values()) {
+      t.qty = cadetsFor(t.key, "ALL").reduce((a, e) => a + (e.removed ? 0 : e.qty), 0);
     }
     return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
   }
@@ -969,12 +1008,12 @@
     return [...new Set(state.orders.map(o => o.location))];
   }
 
-  function buildList() {
+  function cadetsFor(date, loc) {
     const byCadet = new Map();
     for (const o of allOrders()) {
-      if (state.loc !== "ALL" && o.location !== state.loc) continue;
+      if (loc !== "ALL" && o.location !== loc) continue;
       let qty = 0;
-      for (const d of o.dates) if (d.key === state.date) qty += d.qty;
+      for (const d of o.dates) if (d.key === date) qty += d.qty;
       if (!qty) continue;
       /* Identity is the cadet's own email. A purchaser buying for two
          cadets often puts the same contact number on both orders, so
@@ -1006,6 +1045,33 @@
       if (!e.phone && o.phone) e.phone = o.phone;
     }
     const list = [...byCadet.values()];
+    list.forEach(e => applyEdits(e, date));
+    return list;
+  }
+
+  function applyEdits(e, date) {
+    e.base = { name: e.name, email: e.email, phone: e.phone, qty: e.qty };
+    const info = edits.info[e.key], day = (edits.day[date] || {})[e.key];
+    e.edited = !!(info || (day && day.qty));
+    e.removed = !!(day && day.removed);
+    if (info) {
+      if (info.name) { e.name = info.name; e.names = new Set([info.name]); }
+      if (info.phone !== undefined) e.phone = info.phone;
+      if (info.email !== undefined) {
+        e.email = info.email;
+        /* The corrected address replaces whatever the form had for the cadet. */
+        e.cadetEmails = new Set(info.email ? [info.email.toLowerCase()] : []);
+      }
+    }
+    if (day && day.qty) e.qty = day.qty;
+  }
+
+  function removedList() {
+    return cadetsFor(state.date, state.loc).filter(e => e.removed);
+  }
+
+  function buildList() {
+    const list = cadetsFor(state.date, state.loc).filter(e => !e.removed);
     const byLast = (a, b) =>
       lastName(a.name).localeCompare(lastName(b.name)) ||
       firstName(a.name).localeCompare(firstName(b.name));
@@ -1154,6 +1220,7 @@
           '<button type="button" data-unadd="' + esc(id) + '" title="Remove this hand-added entry" aria-label="Remove hand-added entry for ' +
           esc(e.name) + '">&times;</button></span>');
       });
+      if (e.edited) tags.push('<span class="tag edited">Edited</span>');
       if (e.names.size > 1) tags.push('<span class="tag flag">Name varies<span class="detail">: ' +
         esc([...e.names].join(" / ")) + "</span></span>");
       e.flags.forEach(f => tags.push('<span class="tag flag">' + esc(f) + "</span>"));
@@ -1169,19 +1236,56 @@
         '" data-mark="' + f + '"' + (m[f] ? " checked" : "") +
         ' aria-label="' + label + " " + esc(e.name) + '"></td>';
 
-      return "<tr" + (on ? ' class="done"' : "") + ">" +
+      const editing = state.editing === e.key;
+      const cls = [on ? "done" : "", editing ? "editing" : ""].filter(Boolean).join(" ");
+      return "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" +
         '<td class="cb"><input type="checkbox" data-key="' + esc(e.key) + '" data-mark="p"' +
         (on ? " checked" : "") + ' aria-label="Handed to ' + esc(e.name) + '"></td>' +
         '<td class="alpha">' + rail + "</td>" +
-        '<td class="nm">' + esc(displayName(e.name)) + "</td>" +
+        '<td class="nm">' + esc(displayName(e.name)) +
+        '<button type="button" class="rowedit" data-edit="' + esc(e.key) + '" aria-label="Edit or remove ' +
+        esc(e.name) + '">Edit</button></td>' +
         '<td class="qty' + (e.qty > 1 ? " multi" : "") + '">' + e.qty + "</td>" +
         '<td class="notes">' + tags.join(" ") + "</td>" +
         '<td class="ph">' + (href
             ? '<a class="txt" href="' + href + '" title="Open a text to ' + esc(e.name) + '">' + phone + "</a>"
             : phone) + "</td>" +
-        box("e", "Emailed") + box("t", "Texted") + "</tr>";
+        box("e", "Emailed") + box("t", "Texted") + "</tr>" + (editing ? editorRow(e) : "");
     }).join("");
     void anyNotes;
+    renderRemoved();
+  }
+
+  function editorRow(e) {
+    const onlyManual = e.manualIds.length && e.manualIds.length === e.orders;
+    const was = [];
+    if (e.name !== e.base.name) was.push("name “" + e.base.name + "”");
+    if (e.email !== e.base.email) was.push("email " + (e.base.email || "blank"));
+    if (e.phone !== e.base.phone) was.push("phone " + (fmtPhone(e.base.phone) || "blank"));
+    if (e.qty !== e.base.qty) was.push(e.base.qty + " pkg" + (e.base.qty === 1 ? "" : "s"));
+    return '<tr class="editrow"><td colspan="8"><form id="editor" autocomplete="off" data-key="' + esc(e.key) + '">' +
+      '<div class="addgrid">' +
+      '<label class="w-name">Cadet name<input id="edName" required value="' + esc(e.name) + '"></label>' +
+      '<label class="w-email">Cadet email<input id="edEmail" type="email" value="' + esc(e.email || "") + '"></label>' +
+      '<label class="w-phone">Phone<input id="edPhone" type="tel" value="' + esc(e.phone || "") + '"></label>' +
+      '<label class="w-qty">Pkgs<input id="edQty" type="number" min="1" max="99" required value="' + e.qty + '"></label>' +
+      '<button type="submit" class="primary">Save</button>' +
+      '<button type="button" data-edcancel>Cancel</button>' +
+      (e.edited ? '<button type="button" data-edreset>Undo edits</button>' : "") +
+      '<button type="button" class="danger" data-edremove>' +
+        (onlyManual ? "Delete this cadet" : "Remove from " + esc(dateLabel())) + "</button>" +
+      "</div>" +
+      '<p class="was">' + (was.length ? "From the import: " + esc(was.join(" · ")) + ". " : "") +
+        "Name, email and phone changes apply on every date; packages are for " + esc(dateLabel()) + " only.</p>" +
+      '<p class="hint warnline" id="edMsg" style="margin:6px 0 0"></p>' +
+      "</form></td></tr>";
+  }
+
+  function renderRemoved() {
+    const gone = removedList();
+    $("removedWrap").hidden = gone.length === 0;
+    $("removedWrap").innerHTML = gone.length ? "Removed from " + esc(dateLabel()) + ": " + gone.map(e =>
+      esc(e.name) + ' (<button type="button" data-restore="' + esc(e.key) + '">restore</button>)').join(", ") : "";
   }
 
   /* ============================================================
@@ -1250,6 +1354,97 @@
     if (!m || !confirm("Remove " + m.name + " (" + m.qty + " pkg" + (m.qty === 1 ? "" : "s") + ", added by hand) from " + keyLabel(m.date) + "?")) return;
     manual = manual.filter(x => x.id !== m.id);
     saveManual(); render();
+  });
+
+  /* ---- edit / remove a cadet ---- */
+  function findCadet(key) { return cadetsFor(state.date, state.loc).find(e => e.key === key); }
+  function dayEdit(key) {
+    const d = (edits.day[state.date] = edits.day[state.date] || {});
+    return (d[key] = d[key] || {});
+  }
+  function clearDayEdit(key) {
+    const d = edits.day[state.date];
+    if (d && d[key] && !d[key].qty && !d[key].removed) delete d[key];
+  }
+  $("tbody").addEventListener("click", ev => {
+    const t = ev.target;
+    const ed = t.closest("[data-edit]");
+    if (ed) {
+      state.editing = state.editing === ed.dataset.edit ? null : ed.dataset.edit;
+      renderRows(buildList());
+      if (state.editing && $("edName")) $("edName").focus();
+      return;
+    }
+    const form = t.closest("#editor");
+    if (!form) return;
+    const key = form.dataset.key;
+    const e = findCadet(key);
+    if (t.closest("[data-edcancel]")) { state.editing = null; renderRows(buildList()); return; }
+    if (!e) return;
+    if (t.closest("[data-edreset]")) {
+      if (!confirm("Undo every edit to " + e.name + " and go back to what the import says?")) return;
+      delete edits.info[key];
+      for (const d of Object.keys(edits.day)) {
+        const x = edits.day[d][key];
+        if (x) { delete x.qty; if (!x.removed) delete edits.day[d][key]; }
+      }
+      saveEdits(); state.editing = null; render();
+      return;
+    }
+    if (t.closest("[data-edremove]")) {
+      const onlyManual = e.manualIds.length && e.manualIds.length === e.orders;
+      if (onlyManual) {
+        if (!confirm("Delete " + e.name + " (added by hand) from " + dateLabel() + "? This can't be undone.")) return;
+        manual = manual.filter(m => !e.manualIds.includes(m.id));
+        saveManual();
+        if (edits.day[state.date]) delete edits.day[state.date][key];
+        saveEdits();
+      } else {
+        if (!confirm("Remove " + e.name + " from the " + dateLabel() + " list? You can restore them from the line under the table.")) return;
+        dayEdit(key).removed = true; saveEdits();
+      }
+      state.editing = null; render();
+    }
+  });
+  $("tbody").addEventListener("submit", ev => {
+    if (ev.target.id !== "editor") return;
+    ev.preventDefault();
+    const key = ev.target.dataset.key;
+    const e = findCadet(key);
+    if (!e) return;
+    const name = $("edName").value.trim().replace(/\s+/g, " ");
+    const email = $("edEmail").value.trim();
+    const phone = $("edPhone").value.trim();
+    const qty = parseInt($("edQty").value, 10);
+    const say = m => { $("edMsg").textContent = m; };
+    if (!name) return say("Enter the cadet's name.");
+    if (!(qty >= 1 && qty <= 99)) return say("Packages must be between 1 and 99.");
+    if (email && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) return say("That email doesn't look complete.");
+    if (phone && digits(phone).length < 10) return say("That phone number looks too short.");
+
+    /* Store only what differs from the import, so a later fix to the
+       CSV itself still comes through for anything left alone. */
+    const info = {};
+    if (name !== e.base.name) info.name = name;
+    if (email !== (e.base.email || "")) info.email = email;
+    if (digits(phone) !== digits(e.base.phone)) info.phone = phone;
+    if (Object.keys(info).length) edits.info[key] = info; else delete edits.info[key];
+    const day = dayEdit(key);
+    if (qty !== e.base.qty) day.qty = qty; else delete day.qty;
+    clearDayEdit(key);
+    saveEdits();
+    state.editing = null;
+    render();
+  });
+  $("tbody").addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && ev.target.closest("#editor")) { state.editing = null; renderRows(buildList()); }
+  });
+  $("removedWrap").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-restore]");
+    if (!b) return;
+    const d = edits.day[state.date];
+    if (d && d[b.dataset.restore]) { delete d[b.dataset.restore].removed; clearDayEdit(b.dataset.restore); }
+    saveEdits(); render();
   });
 
   /* ---- add a cadet by hand ---- */
